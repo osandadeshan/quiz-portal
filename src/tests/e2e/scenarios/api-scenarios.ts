@@ -385,4 +385,51 @@ export const API_14 = defineScenario({
   ],
 });
 
-export const API_SCENARIOS = [API_01, API_02, API_03, API_04, API_05, API_06, API_07, API_08, API_09, API_10, API_11, API_12, API_13, API_14];
+const ADMIN_EXPIRED = "This sign-in page had expired, so it was reloaded. Please sign in again.";
+const PARTICIPANT_EXPIRED = "This page had expired, so it was reloaded. Please enter your password again.";
+export const API_15 = defineScenario({
+  id: "API-15",
+  title: "A sign-in form sent twice signs the person in instead of showing “Session expired”",
+  priority: "P1 - Critical",
+  component: "API · Sign-in robustness (double submit, stale pages)",
+  preconditions:
+    `${HOW} This is what happens when someone clicks **Sign in** twice, or presses Enter while the first sign-in is still loading (common on a slow first load): the first request signs in and replaces the session, and the second copy still carries the old page's token. ` +
+    "To act it out, save a copy of the cookie jar right after loading the sign-in page, and send the second copy of the form with that saved jar.",
+  steps: [
+    [
+      "openLogin",
+      "Send `GET /admin/login` and save a copy of the cookie jar (the “second tab”).",
+      "HTTP **200**, header `Cache-Control: no-store` (so Back can't show an old form), and the page has a CSRF token.",
+    ],
+    ["signIn", `Send \`POST /admin/login\` with \`email=${ADMIN.email}\`, \`password=${ADMIN.password}\` and the page's token.`, "HTTP **302** to `/admin`."],
+    [
+      "secondCopy",
+      "With the **saved copy** of the cookie jar, send exactly the same `POST /admin/login` again.",
+      "HTTP **302** to `/admin/login?expired=1` (not the “Session expired” page), and the response sets **no** cookie, so it can't undo the first sign-in.",
+    ],
+    [
+      "landsSignedIn",
+      "With the main cookie jar (the one from the successful sign-in), follow that redirect: `GET /admin/login?expired=1`.",
+      "HTTP **302** to `/admin`: the person is simply signed in. `GET /admin` returns HTTP 200 with the heading “Quizzes”.",
+    ],
+    [
+      "staleTab",
+      "With the saved copy of the cookie jar (whose session no longer exists), `GET /admin/login?expired=1`.",
+      `HTTP **200** sign-in page with the message “${ADMIN_EXPIRED}” and a fresh token; signing in from it returns HTTP 302 to \`/admin\`.`,
+    ],
+    ["setupQuiz", createQuiz("API-15 Double submit"), CREATED],
+    ["invite", inviteOne("api15.max@example.com"), INVITED],
+    [
+      "participantTwice",
+      "As the participant: `GET /q/<token>`, save a copy of the cookie jar, `POST /q/<token>` with the password, then send the same POST again with the saved copy.",
+      "The first POST returns HTTP **302** to `/q/<token>`; the second returns HTTP **302** to `/q/<token>?expired=1` and sets no cookie.",
+    ],
+    [
+      "participantLands",
+      "With the participant's main cookie jar, `GET /q/<token>?expired=1`; with the saved copy, `GET /q/<token>?expired=1`.",
+      `The main jar is signed in: HTTP **302** to \`/q/<token>/start\`. The saved copy gets the sign-in page (HTTP 200) with “${PARTICIPANT_EXPIRED}”.`,
+    ],
+  ],
+});
+
+export const API_SCENARIOS = [API_01, API_02, API_03, API_04, API_05, API_06, API_07, API_08, API_09, API_10, API_11, API_12, API_13, API_14, API_15];

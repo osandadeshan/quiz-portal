@@ -688,7 +688,7 @@ Edit `.env` and restart the app (option B), or change the environment variables 
 | A participant was "signed out" | Their link was opened in another browser. They can sign in again and continue. |
 | Participant lost their password | **⋯ → Share again (new password)** (only before they start). |
 | Can't edit questions | Someone has already started the quiz. **Duplicate** it and edit the copy. |
-| "Your session expired" | The page was open for a long time. Reload and try again. |
+| "Your session expired" / "Session expired" | The page was open for a long time, or the same form was sent twice. Reload and try again. Sign-in pages handle this by themselves: they reload with a short note, or take you straight in if you're already signed in. |
 | An admin forgot their password | The **owner** opens **Team → ⋯ → Reset password** and shares the new one. |
 | The owner forgot their password | Run `npm run reset-password -- you@example.com` in the project folder. On a Docker server: `docker compose -f docker-compose.prod.yml exec app npm run reset-password -- you@example.com`. It prints a new password; sign in and change it on the Account page. |
 | "Only the owner … can add, remove or reset admins" | Ask the owner (the admin with the **Owner** badge on the Team page) to do it. |

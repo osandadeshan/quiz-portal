@@ -26,6 +26,11 @@ export class ParticipantApi {
     return new ParticipantApi(await HttpSession.open(who), token);
   }
 
+  /** The same browser state in a second tab (same cookies, same page token). */
+  async fork(who: string) {
+    return new ParticipantApi(await this.http.fork(who), this.token);
+  }
+
   get base() {
     return `/q/${this.token}`;
   }
@@ -37,6 +42,10 @@ export class ParticipantApi {
   async signIn(password: string) {
     if (!this.http.csrfToken) await this.openLink();
     return this.http.postForm(this.base, { password });
+  }
+  /** The blue information message on the sign-in page, if any. */
+  notice(res: HttpResult) {
+    return squash(res.html.querySelector(".alert-info .alert-body")?.text);
   }
   loginError(res: HttpResult) {
     return squash(res.html.querySelector(".alert-error .alert-body")?.text);

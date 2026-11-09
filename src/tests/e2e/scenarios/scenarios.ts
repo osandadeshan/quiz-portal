@@ -204,8 +204,8 @@ export const E2E_01 = defineScenario({
     ],
     [
       "admin.signIn",
-      `Click in ${bold("Password")}, type the correct password ${code(ADMIN.password)} and click ${bold("Sign in")}.`,
-      `The ${bold("Quizzes")} dashboard opens (address ends with ${code("/admin")}), showing the ${bold("New quiz")} button and the name ${bold(ADMIN.name)} in the top-right corner.`,
+      `Click in ${bold("Password")}, type the correct password ${code(ADMIN.password)} and click ${bold("Sign in")}. While it's still loading, press ${bold("Enter")} on the keyboard (like someone impatient on a slow first load).`,
+      `Only ${bold("one")} sign-in request is sent (no ${bold("Session expired")} page). The ${bold("Quizzes")} dashboard opens (address ends with ${code("/admin")}), showing the ${bold("New quiz")} button and the name ${bold(ADMIN.name)} in the top-right corner.`,
     ],
     [
       "admin.accountMenu",

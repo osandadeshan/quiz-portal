@@ -63,6 +63,11 @@ export class AdminApi {
     return new AdminApi(await HttpSession.open(who));
   }
 
+  /** The same browser state in a second tab (same cookies, same page token). */
+  async fork(who: string) {
+    return new AdminApi(await this.http.fork(who));
+  }
+
   // ---------- Sign-in ----------
   openLogin() {
     return this.http.get("/admin/login");

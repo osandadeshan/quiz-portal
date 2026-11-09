@@ -26,6 +26,7 @@ test.describe.configure({ mode: "serial" });
 test.describe("Quiz lifecycle", () => {
   test(E2E_01.testTitle, async ({ steps, admin }) => {
     steps.use(admin.page);
+    let signInRequests = 0;
     await steps.step(
       "admin.openLogin",
       () => admin.login.goto(),
@@ -49,8 +50,9 @@ test.describe("Quiz lifecycle", () => {
     );
     await steps.step(
       "admin.signIn",
-      () => admin.login.signIn(ADMIN.email, ADMIN.password),
+      async () => (signInRequests = await admin.login.signInThenPressEnter(ADMIN.email, ADMIN.password)),
       async () => {
+        expect(signInRequests, "sign-in requests sent when Enter is pressed while signing in").toBe(1);
         await expect(admin.page).toHaveURL(`${APP_URL}/admin`);
         await expect(admin.dashboard.heading).toHaveText("Quizzes");
         await expect(admin.dashboard.newQuizButton).toBeVisible();

@@ -88,6 +88,10 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
+  // App pages are personal and carry one-time CSRF tokens: never cache them, so
+  // Back reloads instead of showing an old form, and a signed-out browser can't
+  // show cached results. (Static files are served above with their own caching.)
+  res.set("Cache-Control", "no-store");
   Object.assign(res.locals, {
     appName: config.appName,
     icon,

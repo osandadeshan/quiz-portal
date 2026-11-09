@@ -5,11 +5,12 @@
  */
 import { test, expect } from "../../fixtures/test";
 import type { HttpResult } from "../../api/HttpSession";
-import { signInAdmin, createQuiz } from "../../flows/api";
+import { signInAdmin, createQuiz, inviteOne } from "../../flows/api";
 import { dbValue } from "../../support/db";
 import { ADMIN } from "../../support/env";
 import { apiQuiz, apiTitle, API_PASSWORDS } from "../../data/api";
-import { API_01, API_02, API_03, API_04 } from "../../scenarios/api-scenarios";
+import { API_01, API_02, API_03, API_04, API_15 } from "../../scenarios/api-scenarios";
+import type { Invitation } from "../../api/MailApi";
 
 const countAdmins = (email: string) => dbValue<number>("SELECT count(*)::int FROM admins WHERE email=$1", [email]);
 const countQuizzes = (title: string) => dbValue<number>("SELECT count(*)::int FROM quizzes WHERE title=$1", [title]);
@@ -239,6 +240,125 @@ test.describe("API · platform", () => {
       async () => {
         expect(view.status).toBe(200);
         expect(admin.heading(view)).toBe(title);
+      }
+    );
+  });
+
+  test(API_15.testTitle, async ({ steps, api }) => {
+    const admin = await api.admin("browser");
+    let tab2!: Awaited<ReturnType<typeof admin.fork>>;
+    const expiredAdmin = "This sign-in page had expired, so it was reloaded. Please sign in again.";
+    const expiredParticipant = "This page had expired, so it was reloaded. Please enter your password again.";
+
+    let login!: HttpResult;
+    await steps.step(
+      "openLogin",
+      async () => {
+        login = await admin.openLogin();
+        tab2 = await admin.fork("same form, second copy");
+      },
+      async () => {
+        expect(login.status).toBe(200);
+        expect(login.headers["cache-control"]).toBe("no-store");
+        expect(admin.http.csrfToken).toMatch(/^[A-Za-z0-9_-]{20,}$/);
+        expect(tab2.http.csrfToken).toBe(admin.http.csrfToken);
+      }
+    );
+
+    let first!: HttpResult;
+    await steps.step(
+      "signIn",
+      async () => (first = await admin.signIn(ADMIN.email, ADMIN.password)),
+      async () => {
+        expect(first.status).toBe(302);
+        expect(first.location).toBe("/admin");
+      }
+    );
+
+    let second!: HttpResult;
+    await steps.step(
+      "secondCopy",
+      async () => (second = await tab2.signIn(ADMIN.email, ADMIN.password)),
+      async () => {
+        expect(second.status, "not the 403 Session expired page").toBe(302);
+        expect(second.location).toBe("/admin/login?expired=1");
+        expect(second.headers["set-cookie"], "must not replace the signed-in cookie").toBeUndefined();
+      }
+    );
+
+    let land!: HttpResult;
+    let home!: HttpResult;
+    await steps.step(
+      "landsSignedIn",
+      async () => {
+        land = await admin.get("/admin/login?expired=1");
+        home = await admin.dashboard();
+      },
+      async () => {
+        expect(land.status).toBe(302);
+        expect(land.location).toBe("/admin");
+        expect(home.status).toBe(200);
+        expect(admin.heading(home)).toBe("Quizzes");
+      }
+    );
+
+    let stale!: HttpResult;
+    let retry!: HttpResult;
+    await steps.step(
+      "staleTab",
+      async () => {
+        stale = await tab2.get("/admin/login?expired=1");
+        retry = await tab2.signIn(ADMIN.email, ADMIN.password);
+      },
+      async () => {
+        expect(stale.status).toBe(200);
+        expect(tab2.flashes(stale).info).toEqual([expiredAdmin]);
+        expect(retry.status).toBe(302);
+        expect(retry.location).toBe("/admin");
+      }
+    );
+
+    const title = apiTitle("API-15 Double submit");
+    let quizId = 0;
+    await steps.step("setupQuiz", async () => (quizId = await createQuiz(admin, title)), async () => expect(quizId).toBeGreaterThan(0));
+    let inv!: Invitation;
+    await steps.step("invite", async () => (inv = await inviteOne(admin, quizId, "api15.max@example.com", title)), async () => expect(inv.token).not.toBe(""));
+
+    const max = await api.participant(inv.token, "participant Max");
+    let maxTab2!: Awaited<ReturnType<typeof max.fork>>;
+    let p1!: HttpResult;
+    let p2!: HttpResult;
+    await steps.step(
+      "participantTwice",
+      async () => {
+        await max.openLink();
+        maxTab2 = await max.fork("participant, second copy");
+        p1 = await max.signIn(inv.password);
+        p2 = await maxTab2.signIn(inv.password);
+      },
+      async () => {
+        expect(p1.status).toBe(302);
+        expect(p1.location).toBe(max.base);
+        expect(p2.status).toBe(302);
+        expect(p2.location).toBe(`${max.base}?expired=1`);
+        expect(p2.headers["set-cookie"]).toBeUndefined();
+      }
+    );
+
+    let mainLands!: HttpResult;
+    let copyLands!: HttpResult;
+    await steps.step(
+      "participantLands",
+      async () => {
+        mainLands = await max.http.get(`${max.base}?expired=1`);
+        copyLands = await maxTab2.http.get(`${max.base}?expired=1`);
+      },
+      async () => {
+        expect(mainLands.status).toBe(302);
+        expect(mainLands.location).toBe(`${max.base}/start`);
+        expect(copyLands.status).toBe(200);
+        expect(maxTab2.notice(copyLands)).toBe(expiredParticipant);
+        expect(maxTab2.hasPasswordField(copyLands)).toBe(true);
       }
     );
   });

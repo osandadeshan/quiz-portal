@@ -125,6 +125,26 @@ What changed in the app for serverless (all no-ops outside Vercel):
 
 The full Playwright suite passes in Vercel mode (`E2E_TARGET=vercel`, 25/25), and CI runs the API tests in that mode on every PR.
 
+## Fix: "Session expired" on sign-in (reported after the Vercel deploy, 2026-11-09)
+
+**Symptom:** clicking **Sign in** showed "Session expired", and a refresh then showed the admin signed in.
+
+**Cause:** the sign-in form was sent twice. On Vercel the first sign-in can take a few seconds (the function and the Neon database waking up), and pressing Enter while waiting sends the form again. The button's loading style only blocked a second *mouse* click.
+1. The first request signs in and regenerates the session.
+2. The second copy carries the old session's CSRF token, so it got the 403 page.
+3. The first response's cookie was already stored, so a refresh showed the admin signed in.
+
+Reproduced with curl and with the new tests on the old code.
+
+**Fix:**
+- `ui.js` sends each POST form once.
+- A stale token on a sign-in form redirects to `?expired=1` without saving a session, so the signed-in cookie survives. Signed-in people go straight on; others see a short note.
+- App pages are `Cache-Control: no-store`, which also stops cached results showing after sign-out on a shared computer.
+
+**Tests:**
+- API-15: double submit for admins and participants; must fail on the old code.
+- E2E-01: Enter pressed while signing in, so the first request is held back; exactly one request may go out.
+
 ## Backlog (prioritised, not yet done)
 
 | P | Item | Notes |

@@ -1,6 +1,9 @@
 const crypto = require("crypto");
 const { rateLimit } = require("express-rate-limit");
 
+// Sign-in forms (admin sign-in, first-run setup, a participant's quiz link).
+const SIGN_IN_FORM = /^\/(admin\/login|admin\/setup|q\/[^/]+)$/;
+
 /** Per-session CSRF token, checked on every state-changing request. */
 function csrf(req, res, next) {
   if (!req.session.csrf) req.session.csrf = crypto.randomBytes(24).toString("base64url");
@@ -13,6 +16,16 @@ function csrf(req, res, next) {
     crypto.timingSafeEqual(Buffer.from(sent), Buffer.from(req.session.csrf));
   if (ok) return next();
   if (req.is("json") || req.xhr) return res.status(403).json({ error: "Your session expired. Reload the page and try again." });
+  if (req.method === "POST" && SIGN_IN_FORM.test(req.path)) {
+    // Almost always the same sign-in form sent twice (a second click or Enter
+    // while the first sign-in was still loading) or an old tab: the first
+    // sign-in replaced the session, so this copy's token is stale. Don't show a
+    // dead end, and don't save a new session either: its cookie would replace
+    // the one from the sign-in that worked. The sign-in page sends people who
+    // are signed in straight on, and asks the others to sign in again.
+    req.session = null;
+    return res.redirect(`${req.path}?expired=1`);
+  }
   res.status(403);
   return res.render("error", {
     title: "Session expired",

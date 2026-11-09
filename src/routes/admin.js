@@ -15,7 +15,7 @@ const router = express.Router();
 router.get("/login", asyncHandler(async (req, res) => {
   if (req.session.adminId) return res.redirect("/admin");
   if ((await admins.count()) === 0) return res.redirect("/admin/setup");
-  res.render("admin/login", { title: "Sign in", email: "", error: null });
+  res.render("admin/login", { title: "Sign in", email: "", error: null, expired: req.query.expired === "1" });
 }));
 
 router.post("/login", loginLimiter, asyncHandler(async (req, res, next) => {
@@ -24,6 +24,7 @@ router.post("/login", loginLimiter, asyncHandler(async (req, res, next) => {
   if (!admin) {
     return res.status(401).render("admin/login", {
       title: "Sign in",
+      expired: false,
       email: email || "",
       error: "That email and password don't match. Check them and try again.",
     });

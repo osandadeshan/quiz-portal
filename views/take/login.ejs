@@ -18,6 +18,9 @@
       <% if (typeof elsewhere !== 'undefined' && elsewhere) { %>
         <div class="alert alert-warning" role="alert"><%- icon('shield', 18) %><div class="alert-body"><strong>You were signed out.</strong> This quiz link was opened in another browser, and only one browser can use it at a time. Sign in again to continue here. Your saved answers are kept, and the timer keeps running.</div></div>
       <% } %>
+      <% if (typeof expired !== 'undefined' && expired) { %>
+        <div class="alert alert-info" role="status"><%- icon('info', 18) %><div class="alert-body">This page had expired, so it was reloaded. Please enter your password again.</div></div>
+      <% } %>
       <% if (error) { %>
         <div class="alert alert-error" role="alert"><%- icon('xCircle', 18) %><div class="alert-body"><%= error %></div></div>
       <% } %>

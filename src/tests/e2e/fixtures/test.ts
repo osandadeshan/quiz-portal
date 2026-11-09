@@ -95,21 +95,13 @@ export const test = base.extend<Fixtures>({
     await use(new AdminApp(page));
   },
 
+  // eslint-disable-next-line no-empty-pattern
   api: async ({}, use) => {
-    const sessions: HttpSession[] = [];
     await use({
-      admin: async (who = "admin") => {
-        const a = await AdminApi.open(who);
-        sessions.push(a.http);
-        return a;
-      },
-      participant: async (token, who) => {
-        const p = await ParticipantApi.open(token, who);
-        sessions.push(p.http);
-        return p;
-      },
+      admin: (who = "admin") => AdminApi.open(who),
+      participant: (token, who) => ParticipantApi.open(token, who),
     });
-    for (const s of sessions) await s.dispose();
+    for (const s of [...HttpSession.openSessions]) await s.dispose();
   },
 
   newParticipant: async ({ browser }, use) => {

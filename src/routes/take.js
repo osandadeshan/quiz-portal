@@ -72,6 +72,7 @@ router.get("/:token", loadInvite, (req, res) => {
     inv,
     error: null,
     elsewhere: req.query.elsewhere === "1" || req.signedOutElsewhere,
+    expired: req.query.expired === "1",
   });
 });
 

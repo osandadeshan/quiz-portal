@@ -61,9 +61,31 @@
 
   // ---------- Behaviors ----------
 
+  // Mark a form as sent only once it really navigates: this listener is on window
+  // in the bubble phase, so it runs after every other submit handler, and forms
+  // that page scripts send with fetch (preventDefault) aren't marked.
+  window.addEventListener("submit", (e) => {
+    const form = e.target;
+    if (!e.defaultPrevented && form instanceof HTMLFormElement && form.method.toLowerCase() === "post") form.dataset.submitting = "1";
+  });
+
+  // Back/forward cache: a restored page must be able to submit its forms again.
+  window.addEventListener("pageshow", (e) => {
+    if (!e.persisted) return;
+    document.querySelectorAll("form[data-submitting]").forEach((f) => delete f.dataset.submitting);
+    document.querySelectorAll("form button.loading").forEach((b) => b.classList.remove("loading"));
+  });
+
   // Confirm before submitting forms marked with data-confirm.
   document.addEventListener("submit", async (e) => {
     const form = e.target;
+    // A form is sent once: a second click, or Enter while the first submit is
+    // still loading, would race it. (After a sign-in the first request replaces
+    // the session, and the second copy then fails with "Session expired".)
+    if (form.dataset.submitting) {
+      e.preventDefault();
+      return;
+    }
     if (form.dataset.confirm !== undefined && !form.dataset.confirmed) {
       e.preventDefault();
       const ok = await confirmDialog({

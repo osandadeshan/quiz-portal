@@ -6,6 +6,9 @@
       <h1 class="auth-title">Admin sign in</h1>
       <p class="auth-sub">Manage quizzes, invite participants and review results.</p>
       <%- include('../partials/flash') %>
+      <% if (typeof expired !== 'undefined' && expired) { %>
+        <div class="alert alert-info" role="status"><%- icon('info', 18) %><div class="alert-body">This sign-in page had expired, so it was reloaded. Please sign in again.</div></div>
+      <% } %>
       <% if (error) { %>
         <div class="alert alert-error" role="alert"><%- icon('xCircle', 18) %><div class="alert-body"><%= error %></div></div>
       <% } %>

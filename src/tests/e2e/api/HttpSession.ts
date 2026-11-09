@@ -58,12 +58,34 @@ export class HttpSession {
     readonly who: string
   ) {}
 
+  /** Every session not yet disposed; the `api` fixture disposes leftovers after each test. */
+  static readonly openSessions = new Set<HttpSession>();
+
   static async open(who: string): Promise<HttpSession> {
-    return new HttpSession(await request.newContext({ baseURL: APP_URL }), who);
+    const s = new HttpSession(await request.newContext({ baseURL: APP_URL }), who);
+    HttpSession.openSessions.add(s);
+    return s;
   }
 
   async dispose() {
+    HttpSession.openSessions.delete(this);
     await this.ctx.dispose();
+  }
+
+  /**
+   * A copy of this session as it is right now (cookies + CSRF token), like the
+   * same page still open in a second tab, or a form about to be sent twice.
+   */
+  async fork(who: string): Promise<HttpSession> {
+    const copy = new HttpSession(await request.newContext({ baseURL: APP_URL, storageState: await this.ctx.storageState() }), who);
+    copy.csrf = this.csrf;
+    HttpSession.openSessions.add(copy);
+    return copy;
+  }
+
+  /** Cookies this session's browser would send to the app. */
+  async cookies() {
+    return (await this.ctx.storageState()).cookies;
   }
 
   /** The CSRF token from the last HTML page this session loaded. */
