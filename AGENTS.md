@@ -97,6 +97,7 @@ Question types: `single`, `yesno` (options are always exactly Yes, No), `multipl
 
 Production runs on Vercel (README section 8, option A: Vercel + Neon). Docker (`docker-compose.prod.yml`) is the self-hosting alternative. Both must keep working.
 
+- **`api/index.js` must export an Express app, never a plain `(req, res)` function.** For a plain function, Vercel's Node.js "helpers" replace Express's `res.redirect` / `res.status` / `res.send` / `res.json`. Vercel's `redirect` defaults to **307**, so browsers re-POST after every redirect. In production that caused "Session expired" after sign-in (the re-POST to `/admin`) and a save-quiz error after inviting (the re-POST to `/admin/quizzes/:id`). Vercel skips the helpers when the export has `.listen`. `support/vercel-local.cjs` adds them under the same rule, so the suite catches this.
 - **One serverless function.** `api/index.js` wraps the Express app. `vercel.json` (`framework: null`) serves `public/` from the CDN, rewrites everything else to `/api`, and bundles `views/**` and `src/schema.sql` via `includeFiles`. Vercel ignores `express.static()`, so every static asset must live in `public/`. A new runtime-read file or folder (templates, SQL, JSON) must be added to `includeFiles`. Check with `npx vercel build`: `.vercel/output/functions/api/index.func/.vc-config.json` → `filePathMap` lists what's bundled.
 - **No long-running process.** Never rely on `app.listen`, `setInterval` or work after the response on Vercel. `config.serverless` (`VERCEL=1`):
   - startup is lazy (`ready()`, memoized; a failure isn't cached)
@@ -105,7 +106,7 @@ Production runs on Vercel (README section 8, option A: Vercel + Neon). Docker (`
   - nodemailer doesn't pool
 - **Many instances, one database.** `db.migrate()` takes a Postgres advisory lock, so concurrent cold starts don't collide on `CREATE … IF NOT EXISTS`. In-memory state is per instance, so treat it as a cache only. The sign-in rate limits (express-rate-limit MemoryStore) are therefore weaker on Vercel; see the backlog in docs/REVIEW.md.
 - **`TZ` is reserved on Vercel.** CSV dates use `APP_TIMEZONE` (`config.timeZone`, validated with `Intl`) in `util.sheetDate`.
-- **Test it:** `E2E_TARGET=vercel` makes `start-stack.cjs` run `support/vercel-local.cjs`: static files from `public/` first, then `api/index.js`, with `VERCEL=1`. CI runs the API tests in this mode before the normal full run.
+- **Test it:** `E2E_TARGET=vercel` makes `start-stack.cjs` run `support/vercel-local.cjs`: static files from `public/` first, then `api/index.js`, with `VERCEL=1`, and Vercel's helpers exactly when Vercel would add them. CI runs the API tests in this mode before the normal full run.
 
 ## E2E tests (Playwright, `src/tests`)
 

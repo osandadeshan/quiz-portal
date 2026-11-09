@@ -7,6 +7,8 @@
  *      no background sweeper (swept per request instead), lazy startup, small DB pool,
  *      no SMTP connection pooling
  *
+ *   4. Vercel's Node.js helpers when (and only when) Vercel would add them
+ *
  * It doesn't emulate Vercel's file bundling. `npx vercel build` checks that
  * (see AGENTS.md → Vercel).
  */
@@ -37,12 +39,45 @@ function staticFile(urlPath) {
   }
 }
 
-const server = http.createServer((req, res) => {
+/**
+ * Vercel's Node.js "helpers", added exactly when Vercel adds them: when the
+ * exported handler is a plain function (no .listen). They replace Express's
+ * res.redirect/status/send/json with Vercel's (redirect defaults to 307) and
+ * make req.body/query/cookies lazy properties. Mirrors addHelpers() in @vercel/node
+ * (dev-server.mjs), so the tests see what production sees.
+ */
+async function addVercelHelpers(req, res) {
+  // Vercel makes req.body/query/cookies lazy properties that can be overwritten
+  // (setLazyProp). The body itself isn't emulated: the request stream is left
+  // for Express's own body parser, which is what matters for these tests.
+  for (const prop of ["body", "query", "cookies"]) {
+    let value;
+    Object.defineProperty(req, prop, {
+      configurable: true,
+      enumerable: true,
+      get: () => value,
+      set: (v) => Object.defineProperty(req, prop, { configurable: true, enumerable: true, writable: true, value: (value = v) }),
+    });
+  }
+  res.status = (code) => ((res.statusCode = code), res);
+  res.redirect = (statusOrUrl, url) => {
+    if (typeof statusOrUrl === "string") [url, statusOrUrl] = [statusOrUrl, 307];
+    res.writeHead(statusOrUrl, { Location: url }).end();
+    return res;
+  };
+  res.send = (body) => (res.end(typeof body === "object" && !Buffer.isBuffer(body) ? JSON.stringify(body) : body), res);
+  res.json = (body) => (res.setHeader("Content-Type", "application/json; charset=utf-8"), res.end(JSON.stringify(body)), res);
+}
+const usesHelpers = typeof handler.listen !== "function";
+if (usesHelpers) console.warn("[vercel-local] api/index.js exports a plain function: Vercel will add its helpers (307 redirects!)");
+
+const server = http.createServer(async (req, res) => {
   const file = (req.method === "GET" || req.method === "HEAD") && staticFile(req.url);
   if (file) {
     res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream", "Cache-Control": "public, max-age=3600" });
     return req.method === "HEAD" ? res.end() : fs.createReadStream(file).pipe(res);
   }
+  if (usesHelpers) await addVercelHelpers(req, res);
   Promise.resolve(handler(req, res)).catch((err) => {
     console.error("[vercel-local] handler error", err);
     if (!res.headersSent) res.writeHead(500);

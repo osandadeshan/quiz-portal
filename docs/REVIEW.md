@@ -125,11 +125,23 @@ What changed in the app for serverless (all no-ops outside Vercel):
 
 The full Playwright suite passes in Vercel mode (`E2E_TARGET=vercel`, 25/25), and CI runs the API tests in that mode on every PR.
 
-## Fix: "Session expired" on sign-in (reported after the Vercel deploy, 2026-11-09)
+## Fix: every redirect was a 307 on Vercel (reported after the Vercel deploy, 2026-11-09)
+
+**Symptoms in production:**
+- After signing in: "Session expired", then a refresh showed the admin signed in.
+- After inviting people: a raw `{"errors":{"title":"Give your quiz a title.",…}}` page, although the invitations had been created.
+
+**Root cause:** `api/index.js` exported a plain `(req, res)` function, so Vercel added its Node.js helpers. They replaced Express's `res.redirect` with Vercel's, which defaults to **307**, and browsers repeat a POST on a 307:
+- Sign-in re-POSTed to `/admin`, with the old CSRF token after the session regeneration, which gave the 403.
+- The invite form re-POSTed to `/admin/quizzes/:id`, the save-quiz route, which gave the 422 JSON.
+
+**Fix:** `api/index.js` exports an Express app, and Vercel skips its helpers for an app with `.listen` (verified in `@vercel/node`'s launcher source). `support/vercel-local.cjs` now adds the helpers under the same rule. With the old entry file the Vercel-mode suite fails (307 instead of 302 in API-02, API-05 and E2E-01); with the fix, 26/26 pass. Our earlier emulator didn't add the helpers, which is why this reached production.
+
+## Also fixed: sign-in form sent twice (reported after the Vercel deploy, 2026-11-09)
 
 **Symptom:** clicking **Sign in** showed "Session expired", and a refresh then showed the admin signed in.
 
-**Cause:** the sign-in form was sent twice. On Vercel the first sign-in can take a few seconds (the function and the Neon database waking up), and pressing Enter while waiting sends the form again. The button's loading style only blocked a second *mouse* click.
+**Cause (a real but secondary issue; the main cause of the reported symptom was the 307 redirects above):** the sign-in form could be sent twice. On Vercel the first sign-in can take a few seconds (the function and the Neon database waking up), and pressing Enter while waiting sends the form again. The button's loading style only blocked a second *mouse* click.
 1. The first request signs in and regenerates the session.
 2. The second copy carries the old session's CSRF token, so it got the 403 page.
 3. The first response's cookie was already stored, so a refresh showed the admin signed in.
