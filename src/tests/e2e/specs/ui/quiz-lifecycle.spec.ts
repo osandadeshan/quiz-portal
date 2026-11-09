@@ -6,15 +6,15 @@
  * Step names and expected results come from scenarios/scenarios.ts, which also
  * generates src/tests/e2e-test-scenarios.md. No locators live in this file.
  */
-import { test, expect } from "../fixtures/test";
-import { signInAsAdmin, openQuizFromDashboard, escape } from "../flows/admin";
-import { completeQuizFromEmail, expectReviewMatches } from "../flows/participant";
-import { ADMIN, APP_URL } from "../support/env";
-import { run } from "../support/run-state";
-import { parseCsv } from "../support/csv";
-import { QUESTIONS, QUIZ, QUIZ_TITLE, CSV_FILENAME, TYPE_LABEL } from "../data/quiz";
-import { PARTICIPANTS, byId, questionNumbersWhere, correctPercent, optionPicks, averagePercent, topPercent } from "../data/participants";
-import { E2E_01, E2E_02, E2E_03, E2E_04, E2E_05, E2E_06, E2E_07, E2E_08, E2E_09, E2E_10, E2E_11 } from "../scenarios/scenarios";
+import { test, expect } from "../../fixtures/test";
+import { signInAsAdmin, openQuizFromDashboard, escape } from "../../flows/admin";
+import { completeQuizFromEmail, expectReviewMatches } from "../../flows/participant";
+import { ADMIN, APP_URL } from "../../support/env";
+import { run } from "../../support/run-state";
+import { parseCsv } from "../../support/csv";
+import { QUESTIONS, QUIZ, QUIZ_TITLE, CSV_FILENAME, TYPE_LABEL } from "../../data/quiz";
+import { PARTICIPANTS, byId, questionNumbersWhere, correctPercent, optionPicks, averagePercent, topPercent } from "../../data/participants";
+import { E2E_01, E2E_02, E2E_03, E2E_04, E2E_05, E2E_06, E2E_07, E2E_08, E2E_09, E2E_10, E2E_11 } from "../../scenarios/scenarios";
 
 const N = QUESTIONS.length;
 const ranked = [...PARTICIPANTS].sort((a, b) => a.expected.rank - b.expected.rank);

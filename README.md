@@ -765,7 +765,7 @@ public/                      CSS and browser scripts (ui.js, builder.js, take.js
 docs/screenshots/            Images used in this README
 docs/REVIEW.md               Latest code/QA/UX review, fixes and backlog
 AGENTS.md, CLAUDE.md         Guide for AI coding agents / contributors (architecture, invariants, gotchas)
-.claude/skills/              Claude Code skill with an end-to-end smoke test (scripts/smoke.sh)
+.claude/skills/              Claude Code skill: how to verify changes (runs the Playwright suite)
 Dockerfile                   Production image
 docker-compose.yml           Local development database (port 5433)
 docker-compose.prod.yml      Production stack: app + database
@@ -815,8 +815,9 @@ erDiagram
 | `npm run dev` | Start with auto-restart on code changes (development) |
 | `npm start` | Start normally (production) |
 | `npm run reset-password -- you@example.com` | Give an admin a new random password (when nobody can sign in) |
-| `npm run test:smoke` | Fast end-to-end smoke test with curl against a throwaway database (needs Docker, about 20 s) |
-| `npm run test:e2e` | Full browser end-to-end suite (Playwright) against a throwaway database, mailbox and app (needs Docker, about 1 minute) |
+| `npm run test:e2e` | All automated tests (Playwright: API tests + browser tests) against a throwaway database, mailbox and app (needs Docker, about 1.5 minutes) |
+| `npm run test:api` | Only the API tests (about 25 s) |
+| `npm run test:ui` | Only the browser tests (about 1 minute) |
 | `npm run test:e2e:headed` | Same, in a visible browser window |
 | `npm run test:e2e:report` | Build and open the Allure report of the last run |
 | `npm run test:e2e:doc` | Regenerate `src/tests/e2e-test-scenarios.md` without running the tests |
@@ -824,11 +825,19 @@ erDiagram
 
 ### Automated tests
 
-There are two layers, and both create their own **throwaway** database and never touch your real one.
+Everything runs with one command, `npm run test:e2e`, which creates its own **throwaway** database, mailbox and app and never touches your real ones. There are two groups of tests:
 
-**1. Smoke test** (`npm run test:smoke`): about 40 quick checks with `curl` on the server side (scoring, privacy, roles, CSV and so on).
+**1. API tests** (API-01 to API-14, `npm run test:api` on their own): Playwright sends plain HTTP requests, without a browser, to check the rules a person can't easily try by clicking:
+- you must sign in, and forged form posts (CSRF) are refused
+- the server rejects bad quiz data
+- admins can't see each other's quizzes, and only the owner manages the team
+- a second device signs out the first
+- scoring is all-or-nothing, and a cleared answer isn't scored from the autosave
+- "just a confirmation" really hides the score
+- the CSV export can't run spreadsheet formulas
+- every page loads
 
-**2. Browser end-to-end suite** (`npm run test:e2e`): Playwright drives a real Chromium browser through the whole life of a quiz, just like people would:
+**2. Browser tests** (E2E-01 to E2E-11, `npm run test:ui`): Playwright drives a real Chromium browser through the whole life of a quiz, just like people would:
 
 1. The admin signs in and builds a 10-question quiz (3 single choice, 4 multiple answers, 3 Yes / No).
 2. The admin invites three people by email.
@@ -843,14 +852,14 @@ The inbox is **Mailpit**, a disposable mailbox that runs in Docker and catches e
 
 | What | Where |
 |---|---|
-| Every test case, with numbered steps a person can follow by hand, expected results, priority, component, last status, date and commit | `src/tests/e2e-test-scenarios.md` (updated automatically after every run) |
-| Allure report: every step with a full-page screenshot | `npm run test:e2e:report` (results in `src/tests/.output/allure-results`) |
+| The overall result (**PASSED** only if every test case passed; one failure makes it **FAILED**, with the reasons), when it ran and which commit, then every test case with numbered steps a person can follow by hand, expected results, priority, component, last status, date and commit | `src/tests/e2e-test-scenarios.md` (updated automatically after every run) |
+| Allure report: every step, with a full-page screenshot (browser tests) or every HTTP request and response (API tests) | `npm run test:e2e:report` (results in `src/tests/.output/allure-results`) |
 | Playwright's own report, traces and videos of failures | `src/tests/.output/playwright-report`, `src/tests/.output/test-results` |
-| Test code | `src/tests/e2e/`: `specs/` (tests), `pages/` (page objects with all the locators), `flows/`, `data/` (quiz and answers), `scenarios/scenarios.ts` (the test cases, the single source of truth) |
+| Test code | `src/tests/e2e/`: `specs/ui` and `specs/api` (tests), `pages/` (browser page objects with all the locators), `api/` (the same for HTTP: sessions, HTML parsing, the inbox API), `flows/`, `data/`, `scenarios/` (the test cases, the single source of truth) |
 
-**Clean-up:** the suite leaves the app exactly as it found it, whether the tests pass, fail or you stop them with Ctrl+C. Before the first test it records what's in the database and the inbox. Afterwards it deletes every quiz the run created (with its questions, invitations and answers), every session and email, and puts the admin account back as it was (for example the last sign-in time). Then it checks every table against that record, and if anything is left over the run fails. The throwaway containers are removed too. Look for the `[e2e-cleanup]` lines at the end of the output.
+**Clean-up:** the suite leaves the app exactly as it found it, whether the tests pass, fail or you stop them with Ctrl+C. Before the first test it records what's in the database and the inbox. Afterwards it deletes every quiz the run created (with its questions, invitations and answers), every extra admin, session and email, and puts the admin account back as it was (for example the last sign-in time). Then it checks every table against that record, and checks the app logged no errors. If anything is left over or an error was logged, the run fails. The throwaway containers are removed too. Look for the `[e2e-cleanup]` lines at the end of the output.
 
-**On GitHub:** `.github/workflows/e2e.yml` runs the smoke test and the E2E suite on every pull request and on pushes to `main`. The Allure report, Playwright report and test-case table are attached to each run as downloads ("Artifacts" on the run's page), and the table also appears on the run's summary page.
+**On GitHub:** `.github/workflows/e2e.yml` runs the whole suite on every pull request and on pushes to `main`. The Allure report, Playwright report and test-case table are attached to each run as downloads ("Artifacts" on the run's page). The table also appears on the run's summary page and always shows **that run's** results: it starts empty, and the "Tested commit" column is the pull request's own commit.
 
 The suite uses ports 3997 (app), 54331 (database), 11025 and 18025 (mailbox). Override them with `E2E_APP_PORT`, `E2E_PG_PORT`, `E2E_SMTP_PORT` and `E2E_MAIL_UI_PORT` if they're busy.
 

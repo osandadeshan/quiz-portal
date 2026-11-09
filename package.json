@@ -7,13 +7,16 @@
     "start": "node app.js",
     "dev": "nodemon app.js",
     "reset-password": "node scripts/reset-admin-password.js",
-    "test:smoke": "bash .claude/skills/verify-quiz-portal/scripts/smoke.sh",
     "test:e2e": "playwright test -c src/tests",
+    "test:api": "playwright test -c src/tests --project=api",
+    "test:ui": "playwright test -c src/tests --project=chromium",
     "test:e2e:headed": "playwright test -c src/tests --headed",
     "test:e2e:report": "allure generate src/tests/.output/allure-results -o src/tests/.output/allure-report --clean --name \"Quiz Portal E2E\" && allure open src/tests/.output/allure-report",
     "test:e2e:doc": "tsx src/tests/e2e/scripts/generate-doc.ts",
     "test:e2e:typecheck": "tsc -p src/tests",
-    "pretest:e2e": "node -e \"require('fs').rmSync('src/tests/.output/allure-results',{recursive:true,force:true})\""
+    "pretest:e2e": "node -e \"require('fs').rmSync('src/tests/.output/allure-results',{recursive:true,force:true})\"",
+    "pretest:api": "node -e \"require('fs').rmSync('src/tests/.output/allure-results',{recursive:true,force:true})\"",
+    "pretest:ui": "node -e \"require('fs').rmSync('src/tests/.output/allure-results',{recursive:true,force:true})\""
   },
   "keywords": [],
   "author": "",
@@ -36,6 +39,7 @@
     "@types/pg": "^8.23.1",
     "allure": "^3.33.0",
     "allure-playwright": "^3.14.0",
+    "node-html-parser": "^7.0.1",
     "nodemon": "^3.1.7",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"

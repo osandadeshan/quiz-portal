@@ -21,15 +21,16 @@ cp .env.example .env        # first time only
 npm run dev                 # nodemon; app on PORT from .env (default 3000)
 npm start                   # production start
 npm run reset-password -- you@example.com   # new random admin password (owner locked out)
-npm run test:smoke          # curl smoke test (throwaway DB, ~20 s)
-npm run test:e2e            # Playwright browser E2E suite (throwaway DB + Mailpit + app, ~1 min)
+npm run test:e2e            # Playwright suite: API + browser tests (throwaway DB + Mailpit + app, ~1.5 min)
+npm run test:api            # only the API tests (~25 s)
+npm run test:ui             # only the browser tests (~1 min)
 npm run test:e2e:report     # Allure report of the last E2E run
 npm run test:e2e:doc        # regenerate src/tests/e2e-test-scenarios.md
 docker build -t quiz-portal .                              # production image
 docker compose -f docker-compose.prod.yml up -d --build    # app + DB on any server
 ```
 
-There is no unit-test framework yet. **Verify changes with the smoke test**, and run the **Playwright E2E suite** after any change to views, browser JS, routes or services (see "E2E tests" below and `.claude/skills/verify-quiz-portal/SKILL.md`).
+There is no unit-test framework yet. **Verify every change with the Playwright suite** (`npm run test:e2e`; `npm run test:api` is enough for a quick backend-only check) (see "E2E tests" below and `.claude/skills/verify-quiz-portal/SKILL.md`).
 
 ## Layout
 
@@ -90,15 +91,17 @@ Question types: `single`, `yesno` (options are always exactly Yes, No), `multipl
 
 ## E2E tests (Playwright, `src/tests`)
 
-- **Source of truth:** `src/tests/e2e/scenarios/scenarios.ts` defines every test case (ID, title, priority, component, preconditions, and steps as action + expected result). `e2e-test-scenarios.md` is **generated** from it by the custom reporter after each run (status, date, commit) or by `npm run test:e2e:doc`. Never edit the Markdown by hand.
-- **Specs reference steps by key:** `await steps.step("key", act, verify)`. The step's action is the `test.step` name (and the Allure step), `verify` runs inside a nested `Verify: <expected>` step, and a full-page screenshot is attached at the end of every step. `verify` is required: every step must assert its intention.
+- **Two groups, one suite:** API tests (`specs/api/`, project `api`, IDs API-…) make plain HTTP requests with no browser. Browser tests (`specs/ui/`, project `chromium`, IDs E2E-…) run the quiz lifecycle in Chromium. They share fixtures, the step runner, the stack and the cleanup. Each API test is independent: its own quiz (title starts with its ID) and its own `apiNN.*@example.com` participants. The browser tests are serial.
+- **Source of truth:** `src/tests/e2e/scenarios/scenarios.ts` (browser) and `scenarios/api-scenarios.ts` (API) define every test case (ID, title, priority, component, preconditions, and steps as action + expected result). `e2e-test-scenarios.md` is **generated** from it by the custom reporter after each run: per-case status, date and commit, plus a top-of-file **Overall status** (PASSED only if every case passed in that same run and the run, including the teardown checks, passed; otherwise FAILED with the reasons), the execution date and the commit. The reporter's `onEnd` runs after global teardown, so a failed cleanup check makes it FAILED. Results live in `scenarios/last-results.json` (`{ run, cases }`). Note: `--reporter=…` on the command line replaces the configured reporters, so the table isn't updated on such runs or by `npm run test:e2e:doc`. Never edit the Markdown by hand.
+- **Specs reference steps by key:** `await steps.step("key", act, verify)`. The step's action is the `test.step` name (and the Allure step), `verify` runs inside a nested `Verify: <expected>` step, and evidence is attached at the end of every step: a full-page screenshot (browser tests, after `steps.use(page)`) and/or every HTTP request and response made during the step (API tests, from `api/HttpSession.ts`'s log). `verify` is required: every step must assert its intention, and a passing step with no evidence fails.
 - **The `steps` fixture enforces sync:** the test title must equal `scenario.testTitle`, and a passing test must have run every documented step, in order.
-- **Page Object Model:** all locators live in `src/tests/e2e/pages/**` (admin, participant, mail, components). Specs and flows contain no `page.locator` / `getBy*` calls; they use page-object methods and locators with web-first `expect`.
+- **Page Object Model:** all locators live in `src/tests/e2e/pages/**` (admin, participant, mail, components). Specs and flows contain no `page.locator` / `getBy*` calls; they use page-object methods and locators with web-first `expect`. The API tests follow the same rule: all HTML selectors and endpoints live in `src/tests/e2e/api/` (`AdminApi`, `ParticipantApi`, `MailApi` (Mailpit REST), `HttpSession`: cookies, CSRF token from `<meta name="csrf-token">`, redirects never followed automatically). API specs may read the throwaway DB through `support/db.ts` (SELECT only) to prove stored state.
+- **Server-rendered vs browser text:** API tests see the HTML before `public/js` runs, e.g. dates as `Nov 9, 2026, 7:58 AM` (the server's fallback inside `<time data-local>`), not the viewer's local format the browser tests see.
 - **Data drives expectations:** `data/quiz.ts` (10 questions) and `data/participants.ts` (answer plans plus hard-coded expected score and rank, cross-checked at load). Derived values (stats, picks, average) come from helpers there that mirror the app's documented rules.
 - **Stack:** `support/start-stack.cjs` (run by Playwright's `webServer`) starts `qp-e2e-pg` (Postgres, 54331), `qp-e2e-mailpit` (Mailpit v1.33.1, SMTP 11025 / UI 18025) and the app on 3997, then waits on `/healthz`. The tests are serial (`workers: 1`, `retries: 0`) because they share one quiz; each run gets a unique quiz title (`E2E_RUN_ID`).
 - **When UI text changes,** update the page object and the scenario text together, then run `npm run test:e2e` (it rewrites the Markdown).
-- **Clean-up is mandatory and verified:** `support/global-setup.ts` records a baseline (fingerprint of every table, existing ids, admin rows, id sequences, Mailpit message ids) via `support/cleanup.ts`. `support/global-teardown.ts` always runs (pass, fail, Ctrl+C) while the app is still up. It deletes the quizzes, sessions and admins the run created (children cascade), restores admin rows and sequences, deletes the run's emails, and **fails the run** if any table or the inbox differs from the baseline. Anything new a test creates must be removable by that code. Add it to `OWNED` in `cleanup.ts` if it isn't a child of a quiz. The cleanup refuses to run against ports 5432/5433.
-- **CI:** `.github/workflows/e2e.yml` runs the smoke test and the E2E suite on pull requests and pushes to `main`, and uploads the Allure report, the Playwright report and the scenarios table as artifacts.
+- **Clean-up is mandatory and verified:** `support/global-setup.ts` records a baseline (fingerprint of every table, existing ids, admin rows, id sequences, Mailpit message ids) via `support/cleanup.ts`. `support/global-teardown.ts` always runs (pass, fail, Ctrl+C) while the app is still up. It deletes the quizzes, sessions and admins the run created (children cascade), restores admin rows and sequences, deletes the run's emails, and **fails the run** if any table or the inbox differs from the baseline, or if the app's log (`src/tests/.output/app.log`, written by `start-stack.cjs`) has an error line. Anything new a test creates must be removable by that code. Add it to `OWNED` in `cleanup.ts` if it isn't a child of a quiz. The cleanup refuses to run against ports 5432/5433.
+- **CI:** `.github/workflows/e2e.yml` (one job, "Playwright (API + E2E)") runs the whole suite on pull requests and pushes to `main`, and uploads the Allure report, the Playwright report and the scenarios table as artifacts. It deletes the committed table and `last-results.json` before the run and sets `E2E_COMMIT` to the PR head commit, so the job summary only ever shows that run's results.
 - Output (Allure results, Playwright report, traces) goes to `src/tests/.output/` (git-ignored, ignored by nodemon).
 
 ## Conventions
@@ -118,14 +121,14 @@ Question types: `single`, `yesno` (options are always exactly Yes, No), `multipl
 
 ## Gotchas learned the hard way
 
-- On the maintainer's machine, ports 3000 and 5432 are used by other projects. The local `.env` uses `PORT=3001`, and the dev DB is on 5433. The smoke test uses 3999 and 54329.
+- On the maintainer's machine, ports 3000 and 5432 are used by other projects. The local `.env` uses `PORT=3001`, and the dev DB is on 5433. The test suite uses 3997, 54331, 11025 and 18025.
 - The `docker-compose.yml` project name is pinned (`name: quiz-portal`) so renaming the folder doesn't orphan the data volume.
 - macOS filesystems are case-insensitive: `A.jar` and `a.jar` are the same file in shell tests.
 - zsh arrays are 1-indexed. Run bash snippets with `bash -c` or in `.sh` files.
 - `details` `toggle` events fire asynchronously. In browser tests, wait about 150 ms after clicking a summary before asserting on the floating menu.
 - The builder's fixed save bar can cover elements at the bottom of the viewport. In headless tests, `scrollIntoView({ block: "center" })` before clicking.
 - `nodemon` restarts on every save. If the DB is down at that moment, startup waits up to 60 s (`migrateWithRetry`) instead of exiting.
-- In `smoke.sh` (`set -o pipefail`), never pipe anything (`curl` or `echo "$page"`) into `grep -q`: grep exits at the first match, the writer gets SIGPIPE, and the check fails, or a negative check ("answers not leaked") falsely passes. Capture the output in a variable and use `grep -q … <<<"$var"`. This passed on macOS but failed on the Linux CI runner.
+- In bash scripts with `set -o pipefail`, never pipe output into `grep -q`: grep exits at the first match, the writer gets SIGPIPE, and the check fails, or a negative check falsely passes. Capture into a variable and use `grep -q … <<<"$var"`. This passed on macOS but failed on the Linux CI runner, which is one reason the old curl smoke test became Playwright API tests.
 - `trust proxy` follows `config.trustProxy` (1 only for an https `APP_URL`, overridable with `TRUST_PROXY`). Trusting proxies on a plain-http deployment lets clients spoof their IP past the rate limits.
 - Node may fail to resolve `localhost` in sandboxes (nodemailer "DNS lookup for localhost timed out"). The E2E stack uses `127.0.0.1` everywhere.
 - Playwright's `toHaveText(regex)` matches the raw text including leading whitespace and newlines (strings are normalised; regexes aren't). Don't anchor with `^` on elements that start with an icon or indentation.

@@ -9,6 +9,7 @@
  * the developer's own database (5433) or dev server (3001).
  */
 const { execFileSync, spawn } = require("child_process");
+const fs = require("fs");
 const path = require("path");
 const http = require("http");
 
@@ -23,6 +24,8 @@ const PG = "qp-e2e-pg";
 const MAIL = "qp-e2e-mailpit";
 const MAILPIT_IMAGE = "axllent/mailpit:v1.33.1";
 const ROOT = path.resolve(__dirname, "../../../..");
+// The app's console output, also checked for errors by global teardown.
+const APP_LOG = path.resolve(__dirname, "../../.output/app.log");
 
 const log = (...a) => console.log("[e2e-stack]", ...a);
 const docker = (...args) => execFileSync("docker", args, { stdio: ["ignore", "pipe", "pipe"] }).toString().trim();
@@ -83,9 +86,11 @@ process.on("exit", () => { if (!stopping) removeContainers(); });
 
   const appUrl = `http://127.0.0.1:${PORTS.app}`;
   log(`starting Quiz Portal on ${appUrl}`);
+  fs.mkdirSync(path.dirname(APP_LOG), { recursive: true });
+  const logFile = fs.createWriteStream(APP_LOG, { flags: "w" });
   app = spawn(process.execPath, ["app.js"], {
     cwd: ROOT,
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "pipe"],
     env: {
       ...env,
       NODE_ENV: "development",
@@ -107,6 +112,12 @@ process.on("exit", () => { if (!stopping) removeContainers(); });
       TZ: env.TZ || "UTC",
     },
   });
+  for (const [from, to] of [[app.stdout, process.stdout], [app.stderr, process.stderr]]) {
+    from.on("data", (chunk) => {
+      to.write(chunk);
+      logFile.write(chunk);
+    });
+  }
   app.on("exit", (code) => {
     if (!stopping) {
       console.error(`[e2e-stack] the app exited unexpectedly (code ${code})`);

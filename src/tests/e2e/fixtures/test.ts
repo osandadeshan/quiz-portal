@@ -13,6 +13,9 @@ import { ParticipantLoginPage } from "../pages/participant/ParticipantLoginPage"
 import { StartPage } from "../pages/participant/StartPage";
 import { TakeQuizPage } from "../pages/participant/TakeQuizPage";
 import { ResultPage } from "../pages/participant/ResultPage";
+import { AdminApi } from "../api/AdminApi";
+import { ParticipantApi } from "../api/ParticipantApi";
+import { HttpSession } from "../api/HttpSession";
 
 /** Every page object an admin uses, bound to one browser page. */
 export class AdminApp {
@@ -56,6 +59,11 @@ type Fixtures = {
   admin: AdminApp;
   /** Opens a fresh, isolated browser session (like an incognito window) for a participant. */
   newParticipant: () => Promise<ParticipantApp>;
+  /** API tests: HTTP sessions (own cookies + CSRF token each), disposed after the test. No browser. */
+  api: {
+    admin: (who?: string) => Promise<AdminApi>;
+    participant: (token: string, who: string) => Promise<ParticipantApi>;
+  };
 };
 
 async function freshContext(browser: Browser): Promise<BrowserContext> {
@@ -63,7 +71,9 @@ async function freshContext(browser: Browser): Promise<BrowserContext> {
 }
 
 export const test = base.extend<Fixtures>({
-  steps: async ({ page }, use, testInfo) => {
+  // No `page` here, so API tests don't launch a browser. UI tests call steps.use(page).
+  // eslint-disable-next-line no-empty-pattern
+  steps: async ({}, use, testInfo) => {
     const scenario = scenarioByTitle(testInfo.title);
     if (!scenario) {
       throw new Error(`Test "${testInfo.title}" has no matching scenario. Its title must equal "<id> <title>" from scenarios.ts.`);
@@ -75,13 +85,31 @@ export const test = base.extend<Fixtures>({
     await allure.story(scenario.title);
     await allure.label("priority", scenario.priority);
     await allure.description(`**Component:** ${scenario.component}\n\n**Priority:** ${scenario.priority}\n\n**Preconditions:** ${scenario.preconditions}`);
-    const steps = new ScenarioSteps(scenario, testInfo).use(page);
+    const steps = new ScenarioSteps(scenario, testInfo);
     await use(steps);
     if (testInfo.status === "passed") steps.assertAllStepsRan();
   },
 
-  admin: async ({ page }, use) => {
+  admin: async ({ page, steps }, use) => {
+    steps.use(page);
     await use(new AdminApp(page));
+  },
+
+  api: async ({}, use) => {
+    const sessions: HttpSession[] = [];
+    await use({
+      admin: async (who = "admin") => {
+        const a = await AdminApi.open(who);
+        sessions.push(a.http);
+        return a;
+      },
+      participant: async (token, who) => {
+        const p = await ParticipantApi.open(token, who);
+        sessions.push(p.http);
+        return p;
+      },
+    });
+    for (const s of sessions) await s.dispose();
   },
 
   newParticipant: async ({ browser }, use) => {

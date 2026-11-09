@@ -55,7 +55,7 @@ Severity: **High** = data/privacy loss or crash · **Medium** = wrong result or 
 
 ## Verification
 
-- `smoke.sh`: **40 passed, 0 failed** (14 new checks: team roles, reset sign-out, healthz, malformed JSON, recipient parsing, CSV guard, stats, results visibility, cleared-answer scoring).
+- `smoke.sh` (since replaced by the Playwright API tests, see below): **40 passed, 0 failed** (14 new checks: team roles, reset sign-out, healthz, malformed JSON, recipient parsing, CSV guard, stats, results visibility, cleared-answer scoring).
 - Headless Chromium (28 checks): import parsing of the old Markdown format, results setting, Outlook invite list, participant flow with focus handling, score-only result, live progress, local `<time>`, stats, owner reset, read-only team for a non-owner, **no sideways scroll at 390 px** on every admin page and the take page, **no page errors**.
 - README screenshots `03-quiz-builder.png` and `14-participants.png` regenerated (light mode, 1280 px).
 
@@ -74,6 +74,29 @@ Severity: **High** = data/privacy loss or crash · **Medium** = wrong result or 
 
 **Clean-up:** a global setup/teardown pair (`src/tests/e2e/support/cleanup.ts`) records a baseline of every table and the inbox, then deletes everything the run created and verifies an exact match, on pass, fail and Ctrl+C (all three checked). The first version found that admin timestamps lost microseconds on a JS round trip; rows are restored through `to_jsonb` / `jsonb_populate_record`. **CI:** `.github/workflows/e2e.yml` runs smoke + E2E on every PR.
 
+**API tests replace the curl smoke test (2026-11-09):** `smoke.sh` was moved into the Playwright suite as 14 API tests (API-01 to API-14, `src/tests/e2e/specs/api/`). They're plain HTTP, no browser, with the same documentation, Allure steps (each step attaches its HTTP requests and responses) and verified cleanup as the browser tests. CI now has one job. Why:
+- one style and one report
+- documented, manually executable steps
+- no dependency on a script in `.claude/`
+- the bash version had a Linux-only SIGPIPE bug: `curl | grep -q` under `pipefail` failed "ranking" on the CI runner and could have falsely passed "answers not leaked"
+
+Coverage is the same as smoke.sh except first-run setup *creating* an admin (the E2E stack seeds its admin from env). API-01 checks the opposite instead: setup is locked once an admin exists. The "server log has no errors" check moved into global teardown (`src/tests/.output/app.log`).
+
+**Planted-bug check for the API tests:** ten bugs, planted one at a time in a copy of the app, were all caught:
+
+| Planted bug | Caught by |
+|---|---|
+| CSRF check disabled | API-03 |
+| Admins can open each other's quizzes | API-11 |
+| Correct answers sent to the participant | API-06 |
+| Any admin can manage the team | API-12 (a non-owner deleted the owner, so later tests couldn't sign in. Cleanup now **re-inserts** deleted baseline admins exactly) |
+| CSV formulas not neutralised | API-13 |
+| Submit scores the autosave, ignoring cleared answers | API-09 (+4 others) |
+| A second sign-in doesn't sign out the first | API-07 |
+| Quiz title length not validated | API-04 |
+| First-run setup open after an admin exists | API-01 |
+| "Just a confirmation" shows the full review | API-10 |
+
 The test cases (baby steps, expected results, priority, component, last status, date and commit) are generated into `src/tests/e2e-test-scenarios.md`. Allure shows every step with a full-page screenshot.
 
 **Mutation check:** six bugs were planted, one at a time, in a copy of the app, and the suite caught every one:
@@ -91,7 +114,7 @@ The test cases (baby steps, expected results, priority, component, last status, 
 
 | P | Item | Notes |
 |---|---|---|
-| P1 | **Unit tests + CI** | The smoke test and the Playwright E2E suite exist, but there are no unit tests yet. Start with `node --test` for `validateQuiz`, `parseRecipients`, `parseImport` (move it to a shared module), `isAnswerCorrect`, `csvCell`. Run `npm run test:smoke` and `npm run test:e2e` (Docker is needed for both) in GitHub Actions, and publish the Allure report as an artifact. |
+| P1 | **Unit tests** | The Playwright suite (API + browser) runs in CI on every PR (`.github/workflows/e2e.yml`, Allure report as an artifact). There are no unit tests yet. Start with `node --test` for `validateQuiz`, `parseRecipients`, `parseImport` (move it to a shared module), `isAnswerCorrect` and `csvCell`, and add them to the same workflow. |
 | P1 | **Add extra time / extend deadline** for one in-progress participant | Accessibility accommodations, technical problems. Update `deadline_at` and the client picks it up via `/ping` (return `deadline`). |
 | P1 | **Availability window** (opens at / closes at) | Today closing is manual. Add `opens_at`/`closes_at` and have the sweeper close the quiz. |
 | P2 | **Pass mark** (pass/fail badge, filter, CSV column) | Common for compliance training. |

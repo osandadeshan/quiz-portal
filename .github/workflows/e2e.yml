@@ -1,11 +1,13 @@
-# Runs the Quiz Portal test suites on every pull request (and on pushes to main).
+# Runs the Quiz Portal Playwright suite on every pull request (and on pushes to main):
 #
-#   smoke : curl smoke test against a throwaway Postgres (~20 s)
-#   e2e   : Playwright browser E2E suite: throwaway Postgres + Mailpit + the app,
-#           Allure report, Playwright report and the generated scenarios table
+#   API tests (API-…)          plain HTTP: auth, CSRF, validation, privacy, roles,
+#                              one browser per link, scoring, CSV, error pages
+#   Browser tests (E2E-…)      Chromium through the whole quiz lifecycle
 #
-# Both suites start their own Docker containers (the GitHub ubuntu runner has
-# Docker), use only throwaway data, and clean up after themselves.
+# Both run against a throwaway Postgres + Mailpit + the app started in Docker by
+# the suite itself (the GitHub ubuntu runner has Docker), and global teardown
+# restores and verifies the original state. Outputs: Allure report, Playwright
+# report, and the generated test-case table (also shown on the run's summary).
 #
 # The runner image is pinned (ubuntu-24.04) so a new `ubuntu-latest` can't change
 # the environment under a PR; bump it deliberately. Actions are on their Node 24
@@ -31,26 +33,8 @@ env:
   FORCE_COLOR: "1"
 
 jobs:
-  smoke:
-    name: Smoke test
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run smoke test
-        run: npm run test:smoke
-
   e2e:
-    name: Playwright E2E
+    name: Playwright (API + E2E)
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -92,8 +76,16 @@ jobs:
           docker pull postgres:16-alpine
           docker pull axllent/mailpit:v1.33.1
 
-      - name: Run E2E tests
+      # The committed table and results are from someone's local run. Remove them so
+      # the table this job publishes can only contain this run's results.
+      - name: Start from an empty results table
+        run: rm -f src/tests/e2e-test-scenarios.md src/tests/e2e/scenarios/last-results.json
+
+      - name: Run API and browser tests
         run: npm run test:e2e
+        env:
+          # The commit under test: a PR's head commit, not GitHub's temporary merge commit.
+          E2E_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Build Allure report
         if: ${{ !cancelled() }}
@@ -104,6 +96,8 @@ jobs:
         run: |
           if [ -f src/tests/e2e-test-scenarios.md ]; then
             cat src/tests/e2e-test-scenarios.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### No test results: the run stopped before the suite finished. See the 'Run API and browser tests' step log." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload Allure report

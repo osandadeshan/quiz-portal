@@ -7,41 +7,43 @@ description: Verify Quiz Portal changes end to end against a throwaway Postgres.
 
 Always test against a **throwaway** database. Never use the developer's `.env` database (port 5433) or their running dev server (port 3001).
 
-## 1. Backend and flow smoke test (always)
+## 1. Playwright suite: API + browser tests (always)
 
 ```bash
-bash .claude/skills/verify-quiz-portal/scripts/smoke.sh
+npm run test:e2e          # everything, ~1.5 min: 14 API tests + 11 browser tests
+npm run test:api          # only the API tests, ~25 s (good after backend-only changes)
+npm run test:ui           # only the browser lifecycle tests, ~1 min
+npm run test:e2e:report   # Allure report: every step with its screenshot or HTTP log
 ```
 
-This starts a temporary Postgres container (`quiz-portal-smoke-pg`, port 54329) and the app on port 3999, then checks:
-- first-run admin setup
-- quiz create and validation
-- CSRF
-- invitations with unique credentials
-- participant sign-in, start and autosave
-- correct answers not leaked to the browser
-- one browser per link
-- all-or-nothing scoring
-- ranking, CSV export (incl. formula-injection guard), admin privacy
-- owner-only team management, owner password reset signing the admin out
-- `/healthz`, malformed quiz JSON → 422, Outlook-style recipient parsing
-- per-question stats, "just a confirmation" results mode, cleared-at-submit answers not scored
-- every admin page renders, and the server log is clean
+The suite starts its own throwaway stack: Postgres (`qp-e2e-pg`, 54331), Mailpit (`qp-e2e-mailpit`, SMTP 11025 / inbox 18025) and the app on 3997. It never touches the dev database (5433) or the dev server (3001).
 
-It cleans up on exit and must end with `0 failed`. Override ports with `SMOKE_PG_PORT` / `SMOKE_APP_PORT` if they're busy.
+- **API tests (API-01 to API-14, `src/tests/e2e/specs/api/`):** plain HTTP, no browser. They cover:
+  - health check and first-run setup being locked
+  - admin sign-in/out
+  - CSRF
+  - server-side quiz validation, including malformed JSON → 422
+  - Outlook-style invitations with unique emailed credentials
+  - participant sign-in, and correct answers never reaching the browser
+  - one browser per link
+  - autosave and all-or-nothing scoring; idempotent submit
+  - cleared answers not being scored from the autosave
+  - the "just a confirmation" results mode
+  - admin privacy and owner-only team management, including a password reset signing the admin out
+  - CSV rank order and formula-injection guard
+  - every page rendering, and the 404 pages
+- **Browser tests (E2E-01 to E2E-11, `src/tests/e2e/specs/ui/`):** the full quiz lifecycle in Chromium.
 
-## 2. Playwright E2E suite (UI, browser JS, routes or services)
-
-```bash
-npm run test:e2e          # ~1 min; starts its own Postgres (54331), Mailpit (11025/18025) and app (3997)
-npm run test:e2e:report   # Allure report: every step with a screenshot
+All must pass, and the output must end with:
 ```
+[e2e-cleanup] app log: no errors
+[e2e-cleanup] verified: every table and the inbox match the pre-run baseline
+```
+The teardown deletes everything the run created and fails the run if any table, the inbox or the app log isn't clean. The run rewrites `src/tests/e2e-test-scenarios.md` (statuses, date, commit). If you change UI text, routes or a flow, update the scenarios (`src/tests/e2e/scenarios/scenarios.ts` for the browser tests, `api-scenarios.ts` for the API tests) and the page objects (`src/tests/e2e/pages/`, `src/tests/e2e/api/`) together. Specs must not contain locators or selectors. The rules are in AGENTS.md → "E2E tests".
 
-All 11 scenarios must pass, and the output must end with `[e2e-cleanup] verified: every table and the inbox match the pre-run baseline` (the teardown deletes everything the run created and fails the run otherwise). The run rewrites `src/tests/e2e-test-scenarios.md` (statuses, date, commit). If you change UI text or a flow, update `src/tests/e2e/scenarios/scenarios.ts` and the page objects in `src/tests/e2e/pages/` together. Specs must not contain locators. The rules are in AGENTS.md → "E2E tests".
+## 2. Ad-hoc checks of screens the suite doesn't cover
 
-## 3. Ad-hoc browser checks (screens the suite doesn't cover)
-
-The smoke test uses curl, so it doesn't run the browser scripts (`public/js/*.js`). For those:
+Prefer adding a scenario to the suite. For a quick one-off look, start the suite's stack by hand (`node src/tests/e2e/support/start-stack.cjs`, with `E2E_ADMIN_NAME`, `E2E_ADMIN_EMAIL` and `E2E_ADMIN_PASSWORD` set; Ctrl+C removes it), or the minimal stack below.
 
 1. Start the same throwaway stack by hand:
    ```bash
@@ -62,13 +64,13 @@ The smoke test uses curl, so it doesn't run the browser scripts (`public/js/*.js
    - On macOS, cookie-jar names that differ only by case collide.
 6. Check for horizontal overflow at phone width: `document.documentElement.scrollWidth` must equal `clientWidth` on every admin page.
 
-## 4. Clean up
+## 3. Clean up
 
 ```bash
 lsof -nP -iTCP:3999 -sTCP:LISTEN -t | xargs kill; docker rm -f quizapp-pg
 ```
 
-## 5. Production checks (when touching config, server.js or deployment files)
+## 4. Production checks (when touching config, server.js or deployment files)
 
 Copy the repo to a scratch directory, create a `.env` with `NODE_ENV=production`, `ADMIN_EMAIL` / `ADMIN_PASSWORD`, `POSTGRES_PASSWORD` and `APP_PORT=3998`, then run:
 

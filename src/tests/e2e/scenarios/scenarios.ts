@@ -20,6 +20,7 @@ import {
   topPercent,
 } from "../data/participants";
 import { defineScenario, StepTuple } from "./define";
+import { API_SCENARIOS } from "./api-scenarios";
 
 // ---------- Text helpers ----------
 const code = (s: string) => `\`${s}\``;
@@ -449,7 +450,10 @@ export const E2E_11 = defineScenario({
   ],
 });
 
-export const SCENARIOS = [E2E_01, E2E_02, E2E_03, E2E_04, E2E_05, E2E_06, E2E_07, E2E_08, E2E_09, E2E_10, E2E_11];
+export const UI_SCENARIOS = [E2E_01, E2E_02, E2E_03, E2E_04, E2E_05, E2E_06, E2E_07, E2E_08, E2E_09, E2E_10, E2E_11];
+export { API_SCENARIOS };
+/** Every documented test case: browser end-to-end (E2E-…) and API (API-…). */
+export const SCENARIOS = [...UI_SCENARIOS, ...API_SCENARIOS];
 
 export const scenarioByTitle = (title: string) => SCENARIOS.find((s) => s.testTitle === title);
 export const scenarioById = (id: string) => SCENARIOS.find((s) => s.id === id);

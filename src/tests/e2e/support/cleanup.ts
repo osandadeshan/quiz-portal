@@ -118,12 +118,13 @@ export async function snapshot(): Promise<Snapshot> {
   return full;
 }
 
-export type CleanupReport = { removed: Record<string, number>; emailsRemoved: number; mismatches: string[] };
+export type CleanupReport = { removed: Record<string, number>; restored: string[]; emailsRemoved: number; mismatches: string[] };
 
 export async function restore(): Promise<CleanupReport> {
   if (!fs.existsSync(SNAPSHOT_PATH)) throw new Error(`No baseline snapshot at ${SNAPSHOT_PATH}; global setup didn't run.`);
   const base = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, "utf8")) as Snapshot;
   const removed: Record<string, number> = {};
+  const restored: string[] = [];
 
   const mismatches = await withDb(async (db) => {
     await db.query("BEGIN");
@@ -141,6 +142,16 @@ export async function restore(): Promise<CleanupReport> {
         const col = OWNED[t];
         const r = await db.query(`DELETE FROM ${t} WHERE NOT (${col} = ANY($1))`, [base.ids[t]]);
         removed[t] = r.rowCount ?? 0;
+      }
+      // Put back baseline admins a test (or a bug) deleted, with their original id,
+      // password hash and timestamps.
+      for (const row of base.admins) {
+        const r = await db.query(
+          `INSERT INTO admins SELECT * FROM jsonb_populate_record(NULL::admins, $1::jsonb)
+           WHERE NOT EXISTS (SELECT 1 FROM admins WHERE id = ($1::jsonb->>'id')::int)`,
+          [JSON.stringify(row)]
+        );
+        if (r.rowCount) restored.push(`admin ${row.email} (was deleted during the run)`);
       }
       // Put changed admin rows back exactly (last sign-in time, name, password…).
       for (const row of base.admins) {
@@ -196,5 +207,5 @@ export async function restore(): Promise<CleanupReport> {
     mismatches.push(`inbox has ${mailAfter.length} emails after cleanup, had ${base.mailIds.length} before`);
   }
 
-  return { removed, emailsRemoved: created.length, mismatches };
+  return { removed, restored, emailsRemoved: created.length, mismatches };
 }

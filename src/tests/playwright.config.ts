@@ -42,7 +42,12 @@ export default defineConfig({
     video: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } } }],
+  projects: [
+    // HTTP-only tests (no browser): auth, CSRF, validation, privacy, roles, scoring, CSV.
+    { name: "api", testMatch: /specs[\\/]api[\\/].*\.spec\.ts$/ },
+    // Browser end-to-end tests: the full quiz lifecycle in Chromium.
+    { name: "chromium", testMatch: /specs[\\/]ui[\\/].*\.spec\.ts$/, use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } } },
+  ],
   webServer: {
     command: `node ${JSON.stringify(path.join(__dirname, "e2e", "support", "start-stack.cjs"))}`,
     url: `${APP_URL}/healthz`,
