@@ -1,0 +1,14 @@
+<%- include('partials/head') %>
+<div class="auth">
+  <div class="card auth-card">
+    <div class="card-body" style="text-align:center">
+      <div class="empty-icon" style="background:var(--warning-soft);color:var(--warning)"><%- icon('alert', 26) %></div>
+      <h1 class="auth-title"><%= title %></h1>
+      <p class="muted" style="margin-bottom:24px"><%= message %></p>
+      <% if (typeof participant === 'undefined' || !participant) { %>
+        <a class="btn btn-primary" href="/admin" data-back><%- icon('arrowLeft', 16) %> Go back</a>
+      <% } %>
+    </div>
+  </div>
+</div>
+<%- include('partials/foot') %>

@@ -1,0 +1,42 @@
+<%- include('../partials/admin-top', { narrow: true }) %>
+<div class="page-header"><div><h1>Account</h1><p class="subtitle">Update your name or change your password.</p></div></div>
+<form method="post" action="/admin/account" class="card" data-loading novalidate>
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <div class="card-header"><div><h2>Profile</h2></div></div>
+  <div class="card-body">
+    <div class="form-grid">
+      <div class="field <%= errors.name ? 'has-error' : '' %>">
+        <label class="label" for="name">Full name</label>
+        <input class="input" id="name" name="name" value="<%= values.name %>" required>
+        <% if (errors.name) { %><span class="field-error"><%= errors.name %></span><% } %>
+      </div>
+      <div class="field">
+        <label class="label">Email</label>
+        <div class="readonly-box" style="height:42px"><%- icon('mail', 16) %> <%= admin.email %></div>
+      </div>
+    </div>
+  </div>
+  <div class="card-header" style="border-top:1px solid var(--border)"><div><h2>Change password</h2><p class="desc">Leave these empty to keep your current password.</p></div></div>
+  <div class="card-body">
+    <div class="form-grid">
+      <div class="field <%= errors.current ? 'has-error' : '' %>">
+        <label class="label" for="current">Current password</label>
+        <input class="input" id="current" name="current" type="password" autocomplete="current-password">
+        <% if (errors.current) { %><span class="field-error"><%= errors.current %></span><% } %>
+      </div>
+      <div class="hide-sm"></div>
+      <div class="field <%= errors.password ? 'has-error' : '' %>">
+        <label class="label" for="password">New password</label>
+        <input class="input" id="password" name="password" type="password" autocomplete="new-password">
+        <% if (errors.password) { %><span class="field-error"><%= errors.password %></span><% } else { %><span class="hint">At least 8 characters.</span><% } %>
+      </div>
+      <div class="field <%= errors.confirm ? 'has-error' : '' %>">
+        <label class="label" for="confirm">Confirm new password</label>
+        <input class="input" id="confirm" name="confirm" type="password" autocomplete="new-password">
+        <% if (errors.confirm) { %><span class="field-error"><%= errors.confirm %></span><% } %>
+      </div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary"><span class="spinner"></span> Save changes</button></div>
+  </div>
+</form>
+<%- include('../partials/admin-bottom') %>

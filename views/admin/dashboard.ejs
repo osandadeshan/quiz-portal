@@ -1,0 +1,66 @@
+<%- include('../partials/admin-top') %>
+<div class="page-header">
+  <div>
+    <h1>Quizzes</h1>
+    <p class="subtitle">Create quizzes, invite people by email and see who did best.</p>
+  </div>
+  <a href="/admin/quizzes/new" class="btn btn-primary btn-lg"><%- icon('plus', 18) %> New quiz</a>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="stat-label"><%- icon('file', 15) %> Quizzes</div><div class="stat-value"><%= totals.quizzes %></div></div>
+  <div class="stat"><div class="stat-label"><%- icon('mail', 15) %> Invitations</div><div class="stat-value"><%= totals.invited %></div></div>
+  <div class="stat"><div class="stat-label"><%- icon('checkCircle', 15) %> Completed</div><div class="stat-value"><%= totals.submitted %><% if (totals.inProgress) { %><span class="unit"> · <%= totals.inProgress %> in progress</span><% } %></div></div>
+  <div class="stat"><div class="stat-label"><%- icon('trophy', 15) %> Average score</div><div class="stat-value"><%= totals.avg == null ? '—' : totals.avg %><% if (totals.avg != null) { %><span class="unit">%</span><% } %></div></div>
+</div>
+
+<% if (!quizzes.length) { %>
+  <div class="card">
+    <div class="empty">
+      <div class="empty-icon"><%- icon('file', 26) %></div>
+      <h3>Create your first quiz</h3>
+      <p>Add single-choice, yes/no or multiple-answer questions, set a time limit, then invite people by email.</p>
+      <a href="/admin/quizzes/new" class="btn btn-primary"><%- icon('plus', 16) %> New quiz</a>
+    </div>
+  </div>
+<% } else { %>
+  <div class="toolbar">
+    <label class="search">
+      <%- icon('search', 16) %>
+      <span class="sr-only">Search quizzes</span>
+      <input class="input" type="search" placeholder="Search quizzes" data-filter=".quiz-card">
+    </label>
+    <div class="filter-pills" role="group" aria-label="Filter by status">
+      <button type="button" class="pill" aria-pressed="true" data-status-filter="all">All</button>
+      <button type="button" class="pill" aria-pressed="false" data-status-filter="active">Active</button>
+      <button type="button" class="pill" aria-pressed="false" data-status-filter="closed">Closed</button>
+    </div>
+  </div>
+  <div class="quiz-grid">
+    <% quizzes.forEach(function (q) { const pct = q.invited_count ? Math.round(100 * q.submitted_count / q.invited_count) : 0; %>
+      <a class="card quiz-card" href="/admin/quizzes/<%= q.id %>" data-search="<%= (q.title + ' ' + q.description).toLowerCase() %>" data-status="<%= q.status %>">
+        <div class="row">
+          <% if (q.status === 'closed') { %><span class="badge"><%- icon('lock', 12) %> Closed</span><% } else if (q.in_progress_count) { %><span class="badge badge-info"><span class="dot"></span> <%= q.in_progress_count %> taking now</span><% } else { %><span class="badge badge-success"><span class="dot"></span> Active</span><% } %>
+          <span class="spacer"></span>
+          <% if (q.avg_percent != null) { %><span class="small muted">Avg <strong style="color:var(--text)"><%= q.avg_percent %>%</strong></span><% } %>
+        </div>
+        <h3><%= q.title %></h3>
+        <p class="desc"><%= q.description || 'No description' %></p>
+        <div class="facts">
+          <span><%- icon('list', 14) %> <%= fmt.plural(q.question_count, 'question') %></span>
+          <span><%- icon('clock', 14) %> <%= q.duration_minutes %> min</span>
+        </div>
+        <div class="progress-line">
+          <% if (q.invited_count) { %>
+            <div class="progress" aria-hidden="true"><span style="width:<%= pct %>%"></span></div>
+            <span class="nowrap"><%= q.submitted_count %>/<%= q.invited_count %> completed</span>
+          <% } else { %>
+            <span><%- icon('send', 14) %> No one invited yet</span>
+          <% } %>
+        </div>
+      </a>
+    <% }) %>
+  </div>
+  <div class="card hidden" data-filter-empty><div class="empty"><h3>No matching quizzes</h3><p>Try a different search or filter.</p></div></div>
+<% } %>
+<%- include('../partials/admin-bottom') %>

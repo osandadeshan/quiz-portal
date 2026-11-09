@@ -1,0 +1,122 @@
+# Runs the Quiz Portal test suites on every pull request (and on pushes to main).
+#
+#   smoke : curl smoke test against a throwaway Postgres (~20 s)
+#   e2e   : Playwright browser E2E suite: throwaway Postgres + Mailpit + the app,
+#           Allure report, Playwright report and the generated scenarios table
+#
+# Both suites start their own Docker containers (the GitHub ubuntu runner has
+# Docker), use only throwaway data, and clean up after themselves.
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to the same PR cancels the run that's still going.
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  FORCE_COLOR: "1"
+
+jobs:
+  smoke:
+    name: Smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run smoke test
+        run: npm run test:smoke
+
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check the E2E suite
+        run: npm run test:e2e:typecheck
+
+      - name: Read Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Chromium system libraries
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      # Pulled up front so image downloads don't eat into the stack's start-up timeout.
+      - name: Pull test containers (Postgres, Mailpit)
+        run: |
+          docker pull postgres:16-alpine
+          docker pull axllent/mailpit:v1.33.1
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+      - name: Build Allure report
+        if: ${{ !cancelled() }}
+        run: npx allure generate src/tests/.output/allure-results -o src/tests/.output/allure-report --clean --name "Quiz Portal E2E"
+
+      - name: Add test-case table to the job summary
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f src/tests/e2e-test-scenarios.md ]; then
+            cat src/tests/e2e-test-scenarios.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload Allure report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: src/tests/.output/allure-report
+          retention-days: 14
+
+      - name: Upload Playwright report, traces and scenarios table
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            src/tests/.output/playwright-report
+            src/tests/.output/test-results
+            src/tests/e2e-test-scenarios.md
+          retention-days: 14

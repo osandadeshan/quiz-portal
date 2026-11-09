@@ -1,0 +1,20 @@
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<dialog class="modal" id="confirm-modal">
+  <form method="dialog">
+    <div class="modal-body">
+      <div class="modal-icon" data-confirm-icon><%- icon('alert', 22) %></div>
+      <h3 data-confirm-title>Are you sure?</h3>
+      <p data-confirm-text></p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" value="cancel">Cancel</button>
+      <button class="btn btn-primary" value="ok" data-confirm-ok>Confirm</button>
+    </div>
+  </form>
+</dialog>
+<script src="/js/icons.js"></script>
+<script src="/js/ui.js"></script>
+<% if (typeof scripts !== 'undefined') { scripts.forEach(function (s) { %><script src="<%= s %>"></script>
+<% }) } %>
+</body>
+</html>

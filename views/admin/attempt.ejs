@@ -1,0 +1,52 @@
+<%- include('../partials/admin-top', { narrow: true }) %>
+<%
+  const p = fmt.percent(inv.score, inv.max_score);
+  const cls = p >= 75 ? 'good' : p >= 50 ? 'mid' : 'low';
+%>
+<div class="breadcrumb"><a href="/admin/quizzes/<%= quiz.id %>?tab=results"><%- icon('arrowLeft', 14) %> <%= quiz.title %> · Results</a></div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="row row-wrap" style="gap:18px">
+      <span class="avatar avatar-lg"><%= fmt.initials(inv.name, inv.email) %></span>
+      <div style="flex:1;min-width:200px">
+        <h1 style="font-size:22px"><%= inv.name || inv.email %></h1>
+        <div class="muted"><%= inv.email %></div>
+      </div>
+      <% if (rankRow) { %>
+        <div style="text-align:center"><div class="small muted">Rank</div><div class="rank rank-<%= rankRow.rank %>" style="font-size:18px;height:40px;min-width:40px;margin-top:4px">#<%= rankRow.rank %></div><div class="small muted" style="margin-top:4px">of <%= totalRanked %></div></div>
+      <% } %>
+    </div>
+    <% if (inv.status === 'submitted') { %>
+      <div class="stats" style="margin:24px 0 0">
+        <div class="stat" style="box-shadow:none"><div class="stat-label">Score</div><div class="stat-value"><%= p %><span class="unit">%</span></div></div>
+        <div class="stat" style="box-shadow:none"><div class="stat-label">Correct</div><div class="stat-value"><%= inv.score %><span class="unit">/ <%= inv.max_score %></span></div></div>
+        <div class="stat" style="box-shadow:none"><div class="stat-label">Time taken</div><div class="stat-value" style="font-size:22px"><%= fmt.formatDuration(rankRow ? rankRow.seconds_taken : null) %></div></div>
+        <div class="stat" style="box-shadow:none"><div class="stat-label">Submitted</div><div style="margin-top:8px;font-weight:600"><%- fmt.localTime(inv.submitted_at) %></div><% if (inv.auto_submitted) { %><span class="badge badge-warning" style="margin-top:6px"><%- icon('clock', 12) %> Auto-submitted</span><% } %><% if (inv.sign_in_count > 1) { %><span class="badge badge-warning" style="margin-top:6px" title="Each new sign-in signs out the previous browser. Several sign-ins can mean the link was shared, or simply that they switched devices."><%- icon('shield', 12) %> <%= inv.sign_in_count %> sign-ins</span><% } %></div>
+      </div>
+    <% } else { %>
+      <div class="alert alert-info" style="margin:20px 0 0"><%- icon('info', 18) %><div class="alert-body"><% if (inv.status === 'in_progress') { const left = Math.max(0, Math.ceil((new Date(inv.deadline_at).getTime() - now) / 60000)); %>This person is taking the quiz right now: <strong><%= answeredCount %> of <%= quiz.questions.length %> answered</strong>, about <%= fmt.plural(left, 'minute') %> left. Their answers appear here once they submit.<% } else { %>This person hasn't started yet.<% } %></div></div>
+    <% } %>
+  </div>
+</div>
+
+<% if (inv.status === 'submitted') { %>
+  <div class="row" style="margin:28px 0 14px">
+    <h2>Answers</h2>
+    <span class="spacer"></span>
+    <div class="filter-pills" role="group" aria-label="Filter answers">
+      <button type="button" class="pill" aria-pressed="true" data-answer-filter="all">All</button>
+      <button type="button" class="pill" aria-pressed="false" data-answer-filter="bad">Incorrect</button>
+      <button type="button" class="pill" aria-pressed="false" data-answer-filter="ok">Correct</button>
+    </div>
+  </div>
+  <div class="card">
+    <%- include('../partials/review', { questions: quiz.questions, answers: answers, showCorrect: true, viewer: 'admin' }) %>
+  </div>
+  <div class="row" style="margin-top:20px">
+    <% if (prev) { %><a class="btn" href="/admin/attempts/<%= prev.id %>"><%- icon('arrowLeft', 16) %> #<%= prev.rank %> <%= prev.name || prev.email %></a><% } %>
+    <span class="spacer"></span>
+    <% if (next) { %><a class="btn" href="/admin/attempts/<%= next.id %>">#<%= next.rank %> <%= next.name || next.email %> <%- icon('arrowRight', 16) %></a><% } %>
+  </div>
+<% } %>
+<%- include('../partials/admin-bottom') %>

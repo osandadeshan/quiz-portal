@@ -1,0 +1,118 @@
+<%- include('../partials/admin-top') %>
+<script type="application/json" id="builder-data"><%- builderData %></script>
+<div class="breadcrumb">
+  <% if (quiz) { %><a href="/admin/quizzes/<%= quiz.id %>"><%- icon('arrowLeft', 14) %> <%= quiz.title %></a>
+  <% } else { %><a href="/admin"><%- icon('arrowLeft', 14) %> All quizzes</a><% } %>
+</div>
+<div class="page-header">
+  <div>
+    <h1><%= quiz ? 'Edit quiz' : 'Create a quiz' %></h1>
+    <p class="subtitle">Add questions, choose the answer type and mark the correct answers.</p>
+  </div>
+</div>
+
+<div class="builder-layout has-savebar">
+  <div>
+    <div id="locked-note"></div>
+    <section class="card" style="margin-bottom:24px">
+      <div class="card-header"><div><h2>Quiz details</h2><p class="desc">Participants see the title, description and time limit before they start.</p></div></div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field span-2" data-field="title">
+            <label class="label" for="f-title">Title</label>
+            <input class="input" id="f-title" maxlength="200" placeholder="e.g. Onboarding knowledge check" autocomplete="off">
+          </div>
+          <div class="field span-2" data-field="description">
+            <label class="label" for="f-desc">Description <span class="opt">(optional)</span></label>
+            <textarea class="textarea" id="f-desc" rows="2" maxlength="2000" placeholder="What this quiz covers, or any instructions for participants"></textarea>
+          </div>
+          <div class="field" data-field="durationMinutes">
+            <label class="label" for="f-duration">Time limit</label>
+            <div class="input-suffix"><input class="input" id="f-duration" type="number" min="1" max="600" step="1" inputmode="numeric"><span class="suffix">minutes</span></div>
+            <span class="hint">When time runs out, answers are submitted automatically.</span>
+          </div>
+          <div class="field">
+            <span class="label">Answer order</span>
+            <label class="switch-row" for="f-shuffle">
+              <input type="checkbox" id="f-shuffle" class="switch">
+              <span><strong>Shuffle answer options</strong><span class="hint" style="display:block">Each participant sees the options in a different order, so the correct answer isn't always in the same place. Turn off if an option like “All of the above” must stay last.</span></span>
+            </label>
+          </div>
+          <div class="field span-2">
+            <span class="label" id="results-label">After submitting, participants see</span>
+            <div class="choice-cards" role="radiogroup" aria-labelledby="results-label">
+              <label class="choice-card"><input type="radio" name="show-results" value="full"><span><strong>Score and correct answers</strong><span class="hint">Good for practice and training.</span></span></label>
+              <label class="choice-card"><input type="radio" name="show-results" value="score"><span><strong>Only their score</strong><span class="hint">Keeps the answers private so you can reuse the quiz.</span></span></label>
+              <label class="choice-card"><input type="radio" name="show-results" value="none"><span><strong>Just a confirmation</strong><span class="hint">For exams. You share results yourself.</span></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="row" style="margin-bottom:14px"><h2>Questions</h2><span class="badge" id="q-count">0</span><span class="spacer"></span><button type="button" class="btn btn-sm" id="import-btn" data-open-dialog="import-dialog"><%- icon('download', 14) %> Import questions</button></div>
+    <div id="questions"></div>
+    <div class="add-menu" id="add-menu">
+      <button type="button" class="add-question" data-add="single"><%- icon('radio', 18) %> Single choice</button>
+      <button type="button" class="add-question" data-add="multiple"><%- icon('checkSquare', 18) %> Multiple answers</button>
+      <button type="button" class="add-question" data-add="yesno"><%- icon('toggle', 18) %> Yes / No</button>
+    </div>
+  </div>
+
+  <aside class="builder-aside">
+    <div class="card">
+      <div class="card-header" style="padding:14px 16px"><h3>Outline</h3><span class="small muted" id="outline-count"></span></div>
+      <ul class="outline" id="outline"></ul>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-body small" style="padding:16px">
+        <strong style="display:block;margin-bottom:8px">Tips</strong>
+        <ul style="margin:0;padding-left:18px;color:var(--muted);line-height:1.7">
+          <li>Click the circle or square next to an option to mark it correct.</li>
+          <li>Press <kbd>Enter</kbd> in an option to add the next one.</li>
+          <li><strong>Multiple answers</strong>: participants must select every correct option.</li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<dialog class="modal modal-wide" id="import-dialog">
+  <form method="dialog">
+    <div class="modal-body">
+      <div class="modal-icon"><%- icon('download', 22) %></div>
+      <h3>Import questions</h3>
+      <p>Paste questions from a document. Put each question on its own line with its answers below it, and mark correct answers with <code>[x]</code>. Leave a blank line between questions.</p>
+      <div class="import-grid">
+        <div class="field">
+          <label class="label" for="import-text">Your questions</label>
+          <textarea class="textarea mono" id="import-text" rows="12" spellcheck="false" placeholder="1. What is 2 + 2?&#10;- [ ] 3&#10;- [x] 4&#10;- [ ] 5&#10;&#10;2. Which are prime numbers?&#10;- [x] 2&#10;- [x] 3&#10;- [ ] 4&#10;&#10;3. Is the sky blue?&#10;- [x] Yes&#10;- [ ] No"></textarea>
+        </div>
+        <div class="small muted import-help">
+          <strong style="color:var(--text)">Good to know</strong>
+          <ul>
+            <li>Answers can start with <code>-</code>, <code>*</code>, <code>a)</code> or <code>A.</code></li>
+            <li>One correct answer makes a <strong>single choice</strong> question, several make a <strong>multiple answers</strong> one.</li>
+            <li>Answers that are just <strong>Yes</strong> and <strong>No</strong> become a Yes / No question.</li>
+            <li>The old Markdown quiz files (<code>## 1. Question [single]</code>) work too.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="import-summary" id="import-summary" aria-live="polite"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" value="cancel">Cancel</button>
+      <button class="btn btn-primary" value="ok" id="import-ok" disabled>Add questions</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="savebar">
+  <div class="container savebar-inner">
+    <span class="status" id="save-status"></span>
+    <span class="spacer"></span>
+    <a class="btn btn-ghost" href="<%= quiz ? '/admin/quizzes/' + quiz.id : '/admin' %>" id="cancel-btn">Cancel</a>
+    <button type="button" class="btn btn-primary btn-lg" id="save-btn"><span class="spinner"></span><%- icon('save', 16) %> <%= quiz ? 'Save changes' : 'Create quiz' %></button>
+  </div>
+</div>
+<%- include('../partials/admin-bottom', { scripts: ['/js/builder.js'] }) %>

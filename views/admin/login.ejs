@@ -1,0 +1,31 @@
+<%- include('../partials/head') %>
+<div class="auth">
+  <div class="card auth-card">
+    <div class="card-body">
+      <div class="auth-brand"><span class="brand"><%- include('../partials/brand') %></span></div>
+      <h1 class="auth-title">Admin sign in</h1>
+      <p class="auth-sub">Manage quizzes, invite participants and review results.</p>
+      <%- include('../partials/flash') %>
+      <% if (error) { %>
+        <div class="alert alert-error" role="alert"><%- icon('xCircle', 18) %><div class="alert-body"><%= error %></div></div>
+      <% } %>
+      <form method="post" action="/admin/login" data-loading>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="field">
+          <label class="label" for="email">Email</label>
+          <input class="input" id="email" name="email" type="email" autocomplete="username" value="<%= email %>" required <%= email ? '' : 'autofocus' %>>
+        </div>
+        <div class="field">
+          <label class="label" for="password">Password</label>
+          <div class="input-group">
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password" required <%= email ? 'autofocus' : '' %>>
+            <button type="button" class="btn btn-ghost btn-icon btn-sm input-addon" data-toggle-password="password" aria-label="Show password"><%- icon('eye', 16) %></button>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-lg btn-block" style="margin-top:24px"><span class="spinner"></span> Sign in</button>
+      </form>
+    </div>
+  </div>
+  <p class="auth-foot" style="position:absolute;bottom:16px;left:0;right:0">Taking a quiz? Open the personal link from your invitation email.</p>
+</div>
+<%- include('../partials/foot') %>
