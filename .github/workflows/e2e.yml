@@ -6,6 +6,10 @@
 #
 # Both suites start their own Docker containers (the GitHub ubuntu runner has
 # Docker), use only throwaway data, and clean up after themselves.
+#
+# The runner image is pinned (ubuntu-24.04) so a new `ubuntu-latest` can't change
+# the environment under a PR; bump it deliberately. Actions are on their Node 24
+# majors (checkout/setup-node/cache v5, upload-artifact v6).
 name: Tests
 
 on:
@@ -29,12 +33,12 @@ env:
 jobs:
   smoke:
     name: Smoke test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -47,12 +51,12 @@ jobs:
 
   e2e:
     name: Playwright E2E
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -69,7 +73,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: pw-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
@@ -104,7 +108,7 @@ jobs:
 
       - name: Upload Allure report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: allure-report
           path: src/tests/.output/allure-report
@@ -112,7 +116,7 @@ jobs:
 
       - name: Upload Playwright report, traces and scenarios table
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-report
           path: |

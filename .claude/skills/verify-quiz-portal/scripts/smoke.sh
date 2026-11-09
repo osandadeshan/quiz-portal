@@ -9,6 +9,9 @@
 # score, the ranking, admin privacy, one-browser-per-link and that correct answers
 # never reach the browser. Cleans everything up on exit.
 set -euo pipefail
+# Never pipe a command into `grep -q`: grep exits at the first match, the writer
+# gets SIGPIPE, and pipefail turns a match into a failure (or a "not found" into a
+# false pass). Capture output in a variable and use `grep -q … <<<"$var"`.
 
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 PG_PORT="${SMOKE_PG_PORT:-54329}"
@@ -65,7 +68,7 @@ redirect=$(curl -s -b "$A" -c "$A" -H "Content-Type: application/json" -H "X-CSR
 QID=$(echo "$redirect" | sed -n 's#.*/quizzes/\([0-9]*\).*#\1#p')
 [ -n "$QID" ] && ok "quiz created (id $QID)" || bad "quiz creation"
 bad_json=$(curl -s -b "$A" -H "Content-Type: application/json" -H "X-CSRF-Token: $T" -d '{"title":"","durationMinutes":0,"questions":[]}' "$B/admin/quizzes")
-echo "$bad_json" | grep -q '"errors"' && ok "invalid quiz rejected" || bad "invalid quiz rejected"
+grep -q '"errors"' <<<"$bad_json" && ok "invalid quiz rejected" || bad "invalid quiz rejected"
 code=$(curl -s -b "$A" -o /dev/null -w '%{http_code}' -H "Content-Type: application/json" -H "X-CSRF-Token: nope" -d "$QUIZ" "$B/admin/quizzes")
 check "CSRF enforced" "$code" "403"
 
@@ -95,12 +98,13 @@ check "participant sign-in" "$code" "302"
 T=$(csrf "$U" "$B/q/$L/start")
 curl -s -b "$U" -c "$U" -o /dev/null -d "_csrf=$T" "$B/q/$L/start"
 take=$(curl -s -b "$U" -c "$U" "$B/q/$L/take")
-echo "$take" | grep -q 'is_correct\|"correct"' && bad "correct answers leaked to browser" || ok "correct answers not sent to browser"
+grep -q 'is_correct\|"correct"' <<<"$take" && bad "correct answers leaked to browser" || ok "correct answers not sent to browser"
 INV=$(psqlq "select id from invitations where token='$L'")
 # answer: Q1 correct, Q2 wrong, Q3 correct
 ANS=$(psqlq "select json_object_agg(q.id, (select array_agg(o.id) from options o where o.question_id=q.id and (case when q.position=1 then not o.is_correct else o.is_correct end))) from questions q where q.quiz_id=$QID")
 T=$(echo "$take" | grep -o 'name="csrf-token" content="[^"]*"' | sed 's/.*content="//;s/"//')
-curl -s -b "$U" -c "$U" -H "Content-Type: application/json" -H "X-CSRF-Token: $T" -d "{\"answers\":$ANS}" "$B/q/$L/answers" | grep -q '"ok":true' && ok "autosave" || bad "autosave"
+saved=$(curl -s -b "$U" -c "$U" -H "Content-Type: application/json" -H "X-CSRF-Token: $T" -d "{\"answers\":$ANS}" "$B/q/$L/answers")
+grep -q '"ok":true' <<<"$saved" && ok "autosave" || bad "autosave"
 
 echo "▶ One browser per link"
 U2="$WORK/p1b.jar"
@@ -112,7 +116,8 @@ curl -s -b "$U2" -c "$U2" -H "Content-Type: application/json" -H "X-CSRF-Token: 
 check "score (2 of 3, all-or-nothing)" "$(psqlq "select score||'/'||max_score from invitations where id=$INV")" "2/3"
 
 echo "▶ Admin results & privacy"
-curl -s -b "$A" "$B/admin/quizzes/$QID" | grep -q 'rank rank-1' && ok "ranking shows participant" || bad "ranking"
+results=$(curl -s -b "$A" "$B/admin/quizzes/$QID")
+grep -q 'rank rank-1' <<<"$results" && ok "ranking shows participant" || bad "ranking"
 code=$(curl -s -b "$A" -o /dev/null -w '%{http_code}' "$B/admin/quizzes/$QID/results.csv"); check "CSV export" "$code" "200"
 T=$(csrf "$A" "$B/admin/team")
 curl -s -b "$A" -c "$A" -o /dev/null -d "_csrf=$T&name=Other&email=other@example.com&password=otherpass1" "$B/admin/team"
@@ -148,7 +153,7 @@ check "Outlook-style 'Last, First <email>' parses" "$parsed" "john@x.com|Smith, 
 cellv=$(cd "$ROOT" && node -e 'process.stdout.write(require("./src/util").csvCell("=HYPERLINK(1)"))')
 check "CSV formula injection neutralised" "$cellv" "\"'=HYPERLINK(1)\""
 qpage=$(curl -s -b "$A" "$B/admin/quizzes/$QID?tab=questions")
-echo "$qpage" | grep -q 'answered correctly' && ok "per-question stats shown" || bad "per-question stats shown"
+grep -q 'answered correctly' <<<"$qpage" && ok "per-question stats shown" || bad "per-question stats shown"
 
 echo "▶ Results visibility + cleared answers"
 QUIZ2='{"title":"Exam","description":"","durationMinutes":5,"showResults":"none","questions":[
@@ -170,7 +175,7 @@ curl -s -b "$C" -c "$C" -o /dev/null -H "Content-Type: application/json" -H "X-C
 curl -s -b "$C" -c "$C" -o /dev/null -H "Content-Type: application/json" -H "X-CSRF-Token: $T" -d "{\"answers\":{\"$Q2\":[]}}" "$B/q/$L2/submit"
 check "answer cleared at submit isn't scored from the autosave" "$(psqlq "select score from invitations where token='$L2'")" "0"
 res=$(curl -s -b "$C" "$B/q/$L2/result")
-echo "$res" | grep -q "all done" && ! echo "$res" | grep -q 'Correct answer\|class="pct"' && ok "'just a confirmation' hides score and answers" || bad "'just a confirmation' hides score and answers"
+grep -q "all done" <<<"$res" && ! grep -q 'Correct answer\|class="pct"' <<<"$res" && ok "'just a confirmation' hides score and answers" || bad "'just a confirmation' hides score and answers"
 
 echo "▶ Pages render"
 for u in /admin "/admin/quizzes/$QID?tab=results" "/admin/quizzes/$QID?tab=participants" "/admin/quizzes/$QID?tab=questions" "/admin/quizzes/$QID/edit" /admin/quizzes/new /admin/team /admin/account "/admin/attempts/$INV"; do

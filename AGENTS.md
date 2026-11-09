@@ -125,7 +125,7 @@ Question types: `single`, `yesno` (options are always exactly Yes, No), `multipl
 - `details` `toggle` events fire asynchronously. In browser tests, wait about 150 ms after clicking a summary before asserting on the floating menu.
 - The builder's fixed save bar can cover elements at the bottom of the viewport. In headless tests, `scrollIntoView({ block: "center" })` before clicking.
 - `nodemon` restarts on every save. If the DB is down at that moment, startup waits up to 60 s (`migrateWithRetry`) instead of exiting.
-- In `smoke.sh` (`set -o pipefail`), don't pipe a large `curl` straight into `grep -q`: grep exits early, curl gets SIGPIPE and the check fails. Capture the page in a variable first.
+- In `smoke.sh` (`set -o pipefail`), never pipe anything (`curl` or `echo "$page"`) into `grep -q`: grep exits at the first match, the writer gets SIGPIPE, and the check fails, or a negative check ("answers not leaked") falsely passes. Capture the output in a variable and use `grep -q … <<<"$var"`. This passed on macOS but failed on the Linux CI runner.
 - `trust proxy` follows `config.trustProxy` (1 only for an https `APP_URL`, overridable with `TRUST_PROXY`). Trusting proxies on a plain-http deployment lets clients spoof their IP past the rate limits.
 - Node may fail to resolve `localhost` in sandboxes (nodemailer "DNS lookup for localhost timed out"). The E2E stack uses `127.0.0.1` everywhere.
 - Playwright's `toHaveText(regex)` matches the raw text including leading whitespace and newlines (strings are normalised; regexes aren't). Don't anchor with `^` on elements that start with an icon or indentation.
