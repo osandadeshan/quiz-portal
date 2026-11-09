@@ -1,0 +1,43 @@
+<%- include('../partials/head') %>
+<div class="auth">
+  <div class="card auth-card" style="max-width:440px">
+    <div class="card-body">
+      <div class="quiz-hero">
+        <span class="eyebrow"><%- icon('file', 14) %> Quiz invitation</span>
+        <h1><%= inv.quiz_title %></h1>
+        <div class="chips">
+          <span class="chip"><%- icon('list', 14) %> <%= fmt.plural(inv.question_count, 'question') %></span>
+          <span class="chip"><%- icon('clock', 14) %> <%= fmt.plural(inv.duration_minutes, 'minute') %></span>
+        </div>
+      </div>
+      <% if (inv.status === 'submitted') { %>
+        <div class="alert alert-success"><%- icon('checkCircle', 18) %><div class="alert-body">You've already completed this quiz. Sign in to see your results.</div></div>
+      <% } else if (inv.status === 'in_progress' && !(typeof elsewhere !== 'undefined' && elsewhere)) { %>
+        <div class="alert alert-info"><%- icon('clock', 18) %><div class="alert-body">Your quiz is in progress and the timer is running. Sign in to continue where you left off.</div></div>
+      <% } %>
+      <% if (typeof elsewhere !== 'undefined' && elsewhere) { %>
+        <div class="alert alert-warning" role="alert"><%- icon('shield', 18) %><div class="alert-body"><strong>You were signed out.</strong> This quiz link was opened in another browser, and only one browser can use it at a time. Sign in again to continue here. Your saved answers are kept, and the timer keeps running.</div></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-error" role="alert"><%- icon('xCircle', 18) %><div class="alert-body"><%= error %></div></div>
+      <% } %>
+      <form method="post" data-loading>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="field">
+          <span class="label">Signing in as</span>
+          <div class="readonly-box"><%- icon('mail', 16) %> <span style="overflow:hidden;text-overflow:ellipsis"><%= inv.email %></span></div>
+        </div>
+        <div class="field">
+          <label class="label" for="password">Password</label>
+          <div class="input-group">
+            <input class="input mono" id="password" name="password" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" required autofocus style="letter-spacing:.06em">
+            <button type="button" class="btn btn-ghost btn-icon btn-sm input-addon" data-toggle-password="password" aria-label="Show password"><%- icon('eye', 16) %></button>
+          </div>
+          <span class="hint">You'll find it in your invitation email. Only one browser can be signed in to this link at a time.</span>
+        </div>
+        <button class="btn btn-primary btn-lg btn-block" style="margin-top:24px"><span class="spinner"></span> Continue <%- icon('arrowRight', 16) %></button>
+      </form>
+    </div>
+  </div>
+</div>
+<%- include('../partials/foot') %>

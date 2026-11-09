@@ -1,0 +1,33 @@
+<% const typeLabels = { single: 'Single choice', yesno: 'Yes / No', multiple: 'Multiple answers — all correct options required' }; %>
+<% questions.forEach(function (q, idx) {
+  const a = answers.get(q.id);
+  const chosen = new Set(a ? a.option_ids : []);
+  const answered = chosen.size > 0;
+  const ok = a && a.is_correct;
+  const state = !answered ? 'none' : ok ? 'ok' : 'bad';
+%>
+  <div class="review-item" data-answer-state="<%= state === 'ok' ? 'ok' : 'bad' %>">
+    <div class="review-head">
+      <span class="review-status <%= state %>" title="<%= state === 'ok' ? 'Correct' : state === 'bad' ? 'Incorrect' : 'Not answered' %>"><%- icon(state === 'ok' ? 'check' : state === 'bad' ? 'x' : 'info', 16) %></span>
+      <div style="flex:1;min-width:0">
+        <div class="review-q"><%= idx + 1 %>. <%= q.text %></div>
+        <div class="review-type"><%= typeLabels[q.type] %><% if (!answered) { %> · <strong>Not answered</strong><% } %></div>
+      </div>
+    </div>
+    <ul class="review-opts">
+      <% q.options.forEach(function (o) {
+        const picked = chosen.has(o.id);
+        const rowCls = o.is_correct ? 'correct' : (picked ? 'chosen-wrong' : '');
+      %>
+        <li class="<%= rowCls %>">
+          <span class="sel <%= q.type === 'multiple' ? 'box' : 'radio' %> <%= picked ? 'on' : '' %>"><%- icon('check', 12) %></span>
+          <span><%= o.text %></span>
+          <span class="tag">
+            <% if (picked) { %><span class="badge <%= o.is_correct ? 'badge-success' : 'badge-danger' %>"><%= viewer === 'admin' ? 'Selected' : 'Your answer' %></span><% } %>
+            <% if (o.is_correct && !picked) { %><span class="badge badge-success">Correct answer</span><% } %>
+          </span>
+        </li>
+      <% }) %>
+    </ul>
+  </div>
+<% }) %>

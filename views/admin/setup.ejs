@@ -1,0 +1,32 @@
+<%- include('../partials/head') %>
+<div class="auth">
+  <div class="card auth-card" style="max-width:460px">
+    <div class="card-body">
+      <div class="auth-brand"><span class="brand"><%- include('../partials/brand') %></span></div>
+      <h1 class="auth-title">Create your admin account</h1>
+      <p class="auth-sub">This is a one-time setup. You can add more admins later from the Team page.</p>
+      <form method="post" action="/admin/setup" data-loading novalidate>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% [['name','Full name','text','name'],['email','Email','email','username']].forEach(function (f) { %>
+          <div class="field <%= errors[f[0]] ? 'has-error' : '' %>">
+            <label class="label" for="<%= f[0] %>"><%= f[1] %></label>
+            <input class="input" id="<%= f[0] %>" name="<%= f[0] %>" type="<%= f[2] %>" autocomplete="<%= f[3] %>" value="<%= values[f[0]] || '' %>" required>
+            <% if (errors[f[0]]) { %><span class="field-error"><%- icon('alert', 14) %><%= errors[f[0]] %></span><% } %>
+          </div>
+        <% }) %>
+        <div class="field <%= errors.password ? 'has-error' : '' %>">
+          <label class="label" for="password">Password</label>
+          <input class="input" id="password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+          <% if (errors.password) { %><span class="field-error"><%- icon('alert', 14) %><%= errors.password %></span><% } else { %><span class="hint">At least 8 characters.</span><% } %>
+        </div>
+        <div class="field <%= errors.confirm ? 'has-error' : '' %>">
+          <label class="label" for="confirm">Confirm password</label>
+          <input class="input" id="confirm" name="confirm" type="password" autocomplete="new-password" required>
+          <% if (errors.confirm) { %><span class="field-error"><%- icon('alert', 14) %><%= errors.confirm %></span><% } %>
+        </div>
+        <button class="btn btn-primary btn-lg btn-block" style="margin-top:24px"><span class="spinner"></span> Create account</button>
+      </form>
+    </div>
+  </div>
+</div>
+<%- include('../partials/foot') %>

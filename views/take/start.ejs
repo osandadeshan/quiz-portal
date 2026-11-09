@@ -1,0 +1,28 @@
+<%- include('../partials/head') %>
+<div class="auth">
+  <div class="card auth-card" style="max-width:560px">
+    <div class="card-body">
+      <div class="quiz-hero" style="text-align:left">
+        <span class="eyebrow">Hi <%= inv.name || inv.email %> 👋</span>
+        <h1 style="font-size:24px"><%= inv.quiz_title %></h1>
+        <% if (inv.quiz_description) { %><p class="muted" style="white-space:pre-wrap"><%= inv.quiz_description %></p><% } %>
+      </div>
+      <ul class="rules" style="margin:8px 0 28px">
+        <li><span class="r-icon"><%- icon('list', 18) %></span><div><strong><%= fmt.plural(inv.question_count, 'question') %></strong><span>Single-choice, yes/no, or multiple-answer. For multiple-answer questions, select every correct option.</span></div></li>
+        <li><span class="r-icon"><%- icon('clock', 18) %></span><div><strong><%= fmt.plural(inv.duration_minutes, 'minute') %></strong><span>The timer starts when you press Start and keeps running even if you close the page.</span></div></li>
+        <li><span class="r-icon"><%- icon('save', 18) %></span><div><strong>Answers save automatically</strong><span>Move between questions freely and change your answers at any time before you submit.</span></div></li>
+        <li><span class="r-icon"><%- icon('zap', 18) %></span><div><strong>Automatic submission</strong><span>When time runs out, whatever you've answered is submitted for you. You can only submit once.</span></div></li>
+        <li><span class="r-icon"><%- icon('trophy', 18) %></span><div><strong>After you submit</strong><span><%= inv.show_results === 'none' ? "You'll see a confirmation. The quiz organizer receives your results." : inv.show_results === 'score' ? "You'll see your score straight away." : "You'll see your score and can review the correct answers." %></span></div></li>
+      </ul>
+      <form method="post" action="/q/<%= inv.token %>/start" data-confirm="The <%= inv.duration_minutes %>-minute timer will start immediately and can't be paused." data-confirm-title="Ready to begin?" data-confirm-btn="Start now">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn btn-primary btn-lg btn-block"><%- icon('clock', 18) %> Start quiz</button>
+      </form>
+      <form method="post" action="/q/<%= inv.token %>/logout" style="text-align:center;margin-top:14px">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn btn-ghost btn-sm">Not <%= inv.email %>? Sign out</button>
+      </form>
+    </div>
+  </div>
+</div>
+<%- include('../partials/foot') %>

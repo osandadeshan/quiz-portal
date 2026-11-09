@@ -1,0 +1,226 @@
+<%- include('../partials/admin-top') %>
+<%
+  const scoreClass = (p) => p >= 75 ? 'good' : p >= 50 ? 'mid' : 'low';
+  const typeLabels = { single: 'Single choice', yesno: 'Yes / No', multiple: 'Multiple answers' };
+  const typeIcons = { single: 'radio', yesno: 'toggle', multiple: 'checkSquare' };
+  const resultsLabels = { full: 'Participants see their score and the correct answers', score: 'Participants see only their score', none: "Participants don't see their score" };
+  const minutesLeft = (i) => Math.max(0, Math.ceil((new Date(i.deadline_at).getTime() - now) / 60000));
+%>
+<div class="breadcrumb"><a href="/admin"><%- icon('arrowLeft', 14) %> All quizzes</a></div>
+<div class="page-header">
+  <div style="min-width:0">
+    <div class="row row-wrap" style="gap:10px">
+      <h1><%= quiz.title %></h1>
+      <% if (quiz.status === 'closed') { %><span class="badge"><%- icon('lock', 12) %> Closed</span><% } else { %><span class="badge badge-success"><span class="dot"></span> Active</span><% } %>
+    </div>
+    <div class="meta-line">
+      <span><%- icon('list', 15) %> <%= fmt.plural(quiz.questions.length, 'question') %></span>
+      <span><%- icon('clock', 15) %> <%= fmt.plural(quiz.duration_minutes, 'minute') %></span>
+      <span><%- icon('refresh', 15) %> <%= quiz.shuffle_options ? 'Options shuffled per participant' : 'Options in fixed order' %></span>
+      <span><%- icon('eye', 15) %> <%= resultsLabels[quiz.show_results] %></span>
+      <span><%- icon('edit', 15) %> Updated <%- fmt.localTime(quiz.updated_at) %></span>
+    </div>
+    <% if (quiz.description) { %><p class="muted" style="margin-top:10px;max-width:720px"><%= quiz.description %></p><% } %>
+  </div>
+  <div class="row">
+    <% if (quiz.status !== 'closed') { %>
+      <a class="btn btn-primary" href="?tab=participants#invite"><%- icon('send', 16) %> Invite people</a>
+    <% } %>
+    <a class="btn" href="/admin/quizzes/<%= quiz.id %>/edit"><%- icon('edit', 16) %> Edit</a>
+    <details class="dropdown">
+      <summary class="btn btn-icon" aria-label="More actions"><%- icon('more', 18) %></summary>
+      <div class="dropdown-menu">
+        <form method="post" action="/admin/quizzes/<%= quiz.id %>/duplicate"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="menu-item"><%- icon('copy', 16) %> Duplicate quiz</button></form>
+        <% if (quiz.status === 'closed') { %>
+          <form method="post" action="/admin/quizzes/<%= quiz.id %>/reopen"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="menu-item"><%- icon('unlock', 16) %> Reopen quiz</button></form>
+        <% } else { %>
+          <form method="post" action="/admin/quizzes/<%= quiz.id %>/close" data-confirm="Invitation links will stop working. Anyone taking the quiz right now will have their answers submitted immediately. You can reopen it later." data-confirm-title="Close this quiz?" data-confirm-btn="Close quiz"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="menu-item"><%- icon('lock', 16) %> Close quiz</button></form>
+        <% } %>
+        <% if (ranked.length) { %><a class="menu-item" href="/admin/quizzes/<%= quiz.id %>/results.csv"><%- icon('download', 16) %> Export results (CSV)</a><% } %>
+        <div class="menu-sep"></div>
+        <form method="post" action="/admin/quizzes/<%= quiz.id %>/delete" data-confirm="This permanently deletes the quiz, all invitations and every answer. This can't be undone." data-confirm-title="Delete “<%= quiz.title %>”?" data-confirm-btn="Delete quiz" data-danger><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="menu-item danger"><%- icon('trash', 16) %> Delete quiz</button></form>
+      </div>
+    </details>
+  </div>
+</div>
+
+<div class="stats five">
+  <div class="stat"><div class="stat-label">Invited</div><div class="stat-value"><%= stats.invited %></div></div>
+  <div class="stat"><div class="stat-label">Started</div><div class="stat-value"><%= stats.started %></div></div>
+  <div class="stat"><div class="stat-label">Completed</div><div class="stat-value"><%= stats.submitted %></div></div>
+  <div class="stat"><div class="stat-label">Average score</div><div class="stat-value"><%= stats.avg == null ? '—' : stats.avg %><% if (stats.avg != null) { %><span class="unit">%</span><% } %></div></div>
+  <div class="stat"><div class="stat-label">Top score</div><div class="stat-value"><%= stats.top == null ? '—' : stats.top %><% if (stats.top != null) { %><span class="unit">%</span><% } %></div></div>
+</div>
+
+<nav class="tabs" aria-label="Quiz sections">
+  <a class="tab <%= tab === 'results' ? 'active' : '' %>" href="?tab=results"><%- icon('trophy', 16) %> Results <span class="count"><%= ranked.length %></span></a>
+  <a class="tab <%= tab === 'participants' ? 'active' : '' %>" href="?tab=participants"><%- icon('users', 16) %> Participants <span class="count"><%= invitations.length %></span></a>
+  <a class="tab <%= tab === 'questions' ? 'active' : '' %>" href="?tab=questions"><%- icon('list', 16) %> Questions <span class="count"><%= quiz.questions.length %></span></a>
+</nav>
+
+<% if (tab === 'results') { %>
+  <% if (!ranked.length) { %>
+    <div class="card"><div class="empty">
+      <div class="empty-icon"><%- icon('trophy', 26) %></div>
+      <h3>No results yet</h3>
+      <p><%= invitations.length ? 'Results appear here, ranked by score, as soon as participants submit.' : 'Invite people to take this quiz. Their results will appear here, ranked by score.' %></p>
+      <% if (!invitations.length && quiz.status !== 'closed') { %><a class="btn btn-primary" href="?tab=participants#invite"><%- icon('send', 16) %> Invite people</a><% } %>
+    </div></div>
+  <% } else { %>
+    <div class="toolbar">
+      <label class="search"><%- icon('search', 16) %><span class="sr-only">Search participants</span><input class="input" type="search" placeholder="Search by name or email" data-filter="[data-result-row]"></label>
+      <span class="spacer"></span>
+      <a class="btn" href="/admin/quizzes/<%= quiz.id %>/results.csv"><%- icon('download', 16) %> Export CSV</a>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th style="width:70px">Rank</th><th>Participant</th><th>Score</th><th class="hide-sm">Time taken</th><th class="hide-sm">Submitted</th><th></th></tr></thead>
+          <tbody>
+          <% ranked.forEach(function (r) { const p = fmt.percent(r.score, r.max_score); %>
+            <tr class="clickable" data-href="/admin/attempts/<%= r.id %>" data-result-row data-search="<%= (r.name + ' ' + r.email).toLowerCase() %>">
+              <td><span class="rank rank-<%= r.rank %>"><%= r.rank %></span></td>
+              <td><div class="person"><span class="avatar"><%= fmt.initials(r.name, r.email) %></span><div style="min-width:0"><div class="person-name"><%= r.name || r.email %></div><div class="person-email"><%= r.email %></div></div></div></td>
+              <td><div class="score-cell"><div class="score-bar <%= scoreClass(p) %>"><span style="width:<%= p %>%"></span></div><span class="score-num"><%= p %>%</span><span class="small muted nowrap"><%= r.score %>/<%= r.max_score %></span></div></td>
+              <td class="hide-sm nowrap"><%= fmt.formatDuration(r.seconds_taken) %></td>
+              <td class="hide-sm"><div class="nowrap"><%- fmt.localTime(r.submitted_at) %></div><% if (r.auto_submitted) { %><span class="badge badge-warning" style="margin-top:4px" title="Time ran out, so the answers were submitted automatically"><%- icon('clock', 12) %> Auto-submitted</span><% } %></td>
+              <td class="num"><a class="btn btn-sm" href="/admin/attempts/<%= r.id %>">View answers <%- icon('arrowRight', 14) %></a></td>
+            </tr>
+          <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-body small muted hidden" data-filter-empty>No participants match your search.</div>
+    </div>
+    <p class="small muted" style="margin-top:12px"><%- icon('info', 14) %> Ranked by score. When scores are tied, the faster time ranks higher.</p>
+  <% } %>
+<% } %>
+
+<% if (tab === 'participants') { %>
+  <div class="split">
+    <div class="card" id="invite">
+      <div class="card-header"><div><h2>Invite people</h2><p class="desc">Each person gets their own link and a unique password<%= mailConfigured ? " by email" : "" %>.</p></div></div>
+      <div class="card-body">
+        <% if (quiz.status === 'closed') { %>
+          <div class="alert alert-warning" style="margin:0"><%- icon('lock', 18) %><div class="alert-body">This quiz is closed. Reopen it from the <strong>⋯</strong> menu to invite more people.</div></div>
+        <% } else if (!quiz.questions.length) { %>
+          <div class="alert alert-warning" style="margin:0"><%- icon('alert', 18) %><div class="alert-body">Add questions before inviting people.</div></div>
+        <% } else { %>
+          <% if (!mailConfigured) { %>
+            <div class="alert alert-info"><%- icon('info', 18) %><div class="alert-body"><strong>No email setup needed.</strong> After you click Invite, you'll get a ready-made message for each person to send from your own email app or WhatsApp, or to copy anywhere.</div></div>
+          <% } %>
+          <form method="post" action="/admin/quizzes/<%= quiz.id %>/invite" data-loading>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="field">
+              <label class="label" for="recipients">Email addresses</label>
+              <textarea class="textarea" id="recipients" name="recipients" rows="6" placeholder="jane@company.com&#10;John Smith &lt;john@company.com&gt;" data-recipients required><%= inviteDraft %></textarea>
+              <span class="hint">One per line, or separated by commas. Add a name like <code>Jane Doe &lt;jane@company.com&gt;</code>.</span>
+              <div class="recipient-preview" data-recipient-preview aria-live="polite"></div>
+            </div>
+            <div class="readonly-box small" style="margin-top:16px"><%- icon('clock', 16) %> <span>Each person has <strong><%= fmt.plural(quiz.duration_minutes, 'minute') %></strong> once they press Start.</span></div>
+            <button class="btn btn-primary btn-block" style="margin-top:16px" data-invite-submit><span class="spinner"></span><%- icon('send', 16) %> <span data-invite-label data-verb="<%= mailConfigured ? 'Send' : 'Create' %>"><%= mailConfigured ? 'Send invitations' : 'Create invitations' %></span></button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div><h2>Participants</h2><p class="desc"><%= invitations.length %> invited · <%= stats.submitted %> completed</p></div></div>
+      <% if (!invitations.length) { %>
+        <div class="empty"><div class="empty-icon"><%- icon('users', 26) %></div><h3>No one invited yet</h3><p>People you invite appear here, with their progress.</p></div>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Participant</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+            <% invitations.forEach(function (i) { %>
+              <tr>
+                <td>
+                  <div class="person"><span class="avatar"><%= fmt.initials(i.name, i.email) %></span><div style="min-width:0">
+                    <div class="person-name"><%= i.name || i.email %></div>
+                    <div class="person-email"><%= i.email %></div>
+                    <div class="small" style="margin-top:2px">
+                      <% if (i.email_status === 'sent') { %><span class="muted"><%- icon('mail', 12) %> Emailed <%- fmt.localTime(i.invited_at) %></span>
+                      <% } else if (i.email_status === 'failed') { %><span style="color:var(--danger)" title="<%= i.email_error %>"><%- icon('alert', 12) %> Email failed</span>
+                      <% } else if (i.email_status === 'not_configured') { %><span class="muted"><%- icon('info', 12) %> Shared manually</span><% } %>
+                      <% if (i.sign_in_count > 1) { %> · <span style="color:var(--warning)" title="Each new sign-in signs out the previous browser. Several sign-ins can mean the link was shared, or simply that they switched devices."><%- icon('shield', 12) %> <%= i.sign_in_count %> sign-ins</span><% } %>
+                    </div>
+                  </div></div>
+                </td>
+                <td>
+                  <% if (i.status === 'submitted') { %><span class="badge badge-success"><%- icon('check', 12) %> Completed · <%= fmt.percent(i.score, i.max_score) %>%</span>
+                  <% } else if (i.status === 'in_progress') { %><span class="badge badge-info"><span class="dot"></span> In progress</span>
+                    <div class="small muted nowrap" style="margin-top:4px"><%= i.answered_count %>/<%= quiz.questions.length %> answered · <%= fmt.plural(minutesLeft(i), 'minute') %> left</div>
+                  <% } else { %><span class="badge badge-outline">Not started</span><% } %>
+                </td>
+                <td class="num">
+                  <details class="dropdown">
+                    <summary class="btn btn-ghost btn-icon btn-sm" aria-label="Actions for <%= i.email %>"><%- icon('more', 16) %></summary>
+                    <div class="dropdown-menu">
+                      <% if (i.status === 'submitted') { %><a class="menu-item" href="/admin/attempts/<%= i.id %>"><%- icon('eye', 16) %> View answers</a><% } %>
+                      <% if (i.status === 'invited' && quiz.status !== 'closed') { %>
+                        <form method="post" action="/admin/invitations/<%= i.id %>/resend" data-confirm="A new password will be generated<%= mailConfigured ? ' and emailed to ' + i.email : ' and you can share it again' %>. Their old password will stop working." data-confirm-title="<%= mailConfigured ? 'Resend invitation?' : 'Share invitation again?' %>" data-confirm-btn="<%= mailConfigured ? 'Resend' : 'Create new password' %>"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="menu-item"><%- icon('refresh', 16) %> <%= mailConfigured ? 'Resend with new password' : 'Share again (new password)' %></button></form>
+                      <% } %>
+                      <% if (i.status !== 'invited') { %>
+                        <form method="post" action="/admin/invitations/<%= i.id %>/reset" data-confirm="<%= i.status === 'in_progress' ? 'They are taking the quiz right now. Their answers so far will be deleted and their timer stops.' : 'Their current answers and score will be deleted.' %> They can start again with the same link and password." data-confirm-title="<%= i.status === 'in_progress' ? 'Restart their attempt?' : 'Allow a retake?' %>" data-confirm-btn="<%= i.status === 'in_progress' ? 'Restart attempt' : 'Allow retake' %>" data-danger><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="menu-item"><%- icon('refresh', 16) %> <%= i.status === 'in_progress' ? 'Restart attempt' : 'Allow retake' %></button></form>
+                      <% } %>
+                      <div class="menu-sep"></div>
+                      <form method="post" action="/admin/invitations/<%= i.id %>/delete" data-confirm="Their link will stop working and any answers will be deleted." data-confirm-title="Remove <%= i.email %>?" data-confirm-btn="Remove" data-danger><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="menu-item danger"><%- icon('trash', 16) %> Remove participant</button></form>
+                    </div>
+                  </details>
+                </td>
+              </tr>
+            <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  </div>
+<% } %>
+
+<% if (tab === 'questions') { %>
+  <% if (locked) { %>
+    <div class="alert alert-info"><%- icon('lock', 18) %><div class="alert-body">Questions are locked because someone has already started this quiz, so everyone answers the same questions. You can still edit the title, description, time limit and what participants see afterwards, or <strong>duplicate</strong> the quiz to change questions.</div></div>
+  <% } %>
+  <% const qs = questionStats; const hasStats = qs && qs.submitted > 0; %>
+  <% if (hasStats) { %>
+    <p class="small muted" style="margin:0 0 12px"><%- icon('info', 14) %> Based on <%= fmt.plural(qs.submitted, 'submitted attempt') %>. Unanswered questions count as incorrect.</p>
+  <% } %>
+  <div class="card">
+    <% quiz.questions.forEach(function (q, idx) {
+      const correct = hasStats ? ((qs.questions.get(q.id) || {}).correct || 0) : 0;
+      const pc = hasStats ? Math.round(100 * correct / qs.submitted) : null;
+    %>
+      <div class="review-item">
+        <div class="review-head">
+          <span class="rank" style="min-width:30px;height:30px;font-size:13px"><%= idx + 1 %></span>
+          <div style="flex:1;min-width:0">
+            <div class="review-q"><%= q.text %></div>
+            <div class="review-type"><%- icon(typeIcons[q.type], 12) %> <%= typeLabels[q.type] %></div>
+          </div>
+          <% if (hasStats) { %>
+            <div class="q-stat" title="<%= correct %> of <%= qs.submitted %> answered correctly">
+              <div class="score-cell"><div class="score-bar <%= scoreClass(pc) %>"><span style="width:<%= pc %>%"></span></div><span class="score-num"><%= pc %>%</span></div>
+              <div class="small muted">answered correctly</div>
+            </div>
+          <% } %>
+        </div>
+        <ul class="review-opts">
+          <% q.options.forEach(function (o) { %>
+            <li class="<%= o.is_correct ? 'correct' : '' %>">
+              <span class="sel <%= q.type === 'multiple' ? 'box' : 'radio' %> <%= o.is_correct ? 'on' : '' %>" style="<%= o.is_correct ? 'background:var(--success);border-color:var(--success)' : '' %>"><%- icon('check', 12) %></span>
+              <span><%= o.text %></span>
+              <span class="tag">
+                <% if (hasStats) { const picks = qs.options.get(o.id) || 0; %><span class="small muted nowrap" title="<%= picks %> of <%= qs.submitted %> chose this"><%= fmt.plural(picks, 'pick') %></span><% } %>
+                <% if (o.is_correct) { %><span class="badge badge-success">Correct</span><% } %>
+              </span>
+            </li>
+          <% }) %>
+        </ul>
+      </div>
+    <% }) %>
+    <% if (!quiz.questions.length) { %><div class="empty"><h3>No questions</h3><p>Edit this quiz to add questions.</p><a class="btn btn-primary" href="/admin/quizzes/<%= quiz.id %>/edit">Edit quiz</a></div><% } %>
+  </div>
+<% } %>
+<%- include('../partials/admin-bottom') %>

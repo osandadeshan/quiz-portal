@@ -1,0 +1,65 @@
+<%- include('../partials/head') %>
+<%
+  const p = fmt.percent(inv.score, inv.max_score);
+  const cls = p >= 75 ? 'good' : p >= 50 ? 'mid' : 'low';
+  const r = 62, c = 2 * Math.PI * r;
+  const secs = inv.started_at && inv.submitted_at ? (new Date(inv.submitted_at) - new Date(inv.started_at)) / 1000 : null;
+  const show = quiz.show_results || 'full';
+  const headline = p >= 90 ? 'Outstanding work!' : p >= 75 ? 'Great job!' : p >= 50 ? 'Good effort!' : 'Thanks for taking the quiz';
+%>
+<header class="take-top">
+  <div class="container container-narrow take-top-inner">
+    <span class="brand-mark"><%- icon('checkSquare', 18) %></span>
+    <div class="take-title"><%= quiz.title %></div>
+    <span class="spacer"></span>
+    <span class="badge badge-success"><%- icon('check', 12) %> Submitted</span>
+  </div>
+</header>
+<main class="container container-narrow page">
+  <section class="card">
+    <% if (show === 'none') { %>
+    <div class="result-hero">
+      <div class="empty-icon" style="background:var(--success-soft);color:var(--success);margin:0 auto 14px"><%- icon('checkCircle', 26) %></div>
+      <h1 style="font-size:24px">Thanks, you're all done!</h1>
+      <p class="muted" style="margin-top:6px">Your answers have been submitted<%= inv.auto_submitted ? ' automatically when the time ran out' : '' %>. The quiz organizer will share results with you if they choose to.</p>
+      <div class="result-facts"><span class="chip"><%- icon('clock', 14) %> Time taken: <%= fmt.formatDuration(secs) %></span></div>
+    </div>
+    <% } else { %>
+    <div class="result-hero">
+      <div class="score-ring <%= cls %>">
+        <svg width="148" height="148" viewBox="0 0 148 148" aria-hidden="true">
+          <circle class="ring-bg" cx="74" cy="74" r="<%= r %>" fill="none" stroke-width="12"/>
+          <circle class="ring-fg" cx="74" cy="74" r="<%= r %>" fill="none" stroke-width="12" stroke-linecap="round" stroke-dasharray="<%= c.toFixed(2) %>" stroke-dashoffset="<%= (c * (1 - p / 100)).toFixed(2) %>"/>
+        </svg>
+        <div class="ring-label"><div class="pct"><%= p %>%</div><div class="of"><%= inv.score %> of <%= inv.max_score %> correct</div></div>
+      </div>
+      <h1 style="font-size:24px"><%= headline %></h1>
+      <p class="muted" style="margin-top:6px">Your answers have been submitted<%= inv.auto_submitted ? ' automatically when the time ran out' : '' %>.</p>
+      <div class="result-facts">
+        <span class="chip"><%- icon('clock', 14) %> Time taken: <%= fmt.formatDuration(secs) %></span>
+        <span class="chip"><%- icon('checkCircle', 14) %> <%= inv.score %> correct</span>
+        <span class="chip"><%- icon('xCircle', 14) %> <%= inv.max_score - inv.score %> incorrect or unanswered</span>
+      </div>
+    </div>
+    <% } %>
+  </section>
+  <% if (show === 'full') { %>
+
+  <div class="row" style="margin:32px 0 14px">
+    <h2>Review your answers</h2>
+    <span class="spacer"></span>
+    <div class="filter-pills" role="group" aria-label="Filter answers">
+      <button type="button" class="pill" aria-pressed="true" data-answer-filter="all">All</button>
+      <button type="button" class="pill" aria-pressed="false" data-answer-filter="bad">Incorrect</button>
+      <button type="button" class="pill" aria-pressed="false" data-answer-filter="ok">Correct</button>
+    </div>
+  </div>
+  <section class="card">
+    <%- include('../partials/review', { questions: quiz.questions, answers: answers, showCorrect: true, viewer: 'participant' }) %>
+  </section>
+  <% } else if (show === 'score') { %>
+  <p class="small muted" style="text-align:center;margin-top:18px"><%- icon('lock', 13) %> The quiz organizer has chosen not to show the correct answers.</p>
+  <% } %>
+  <p class="footer-note">You can close this page. Your results have been shared with the quiz organizer.</p>
+</main>
+<%- include('../partials/foot') %>

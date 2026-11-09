@@ -1,0 +1,61 @@
+<% const flashIcons = { success: 'checkCircle', error: 'xCircle', warning: 'alert', info: 'info', credentials: 'info', password: 'lock' }; %>
+<% const flash = takeFlash(); %>
+<% flash.forEach(function (f) { %>
+  <% if (f.type === 'credentials') { %>
+    <section class="card share-panel">
+      <div class="card-header">
+        <div>
+          <h2 class="row" style="gap:8px"><%- icon('send', 18) %> Share invitations</h2>
+          <p class="desc"><%= f.message %></p>
+        </div>
+        <div class="row">
+          <span class="small muted nowrap" data-share-left><%= f.credentials.length %> left to share</span>
+          <% if (f.credentials.length > 1) { %>
+            <button type="button" class="btn btn-sm" data-copy="<%= f.credentials.map(function (c) { return '--- To: ' + c.email + ' ---\n' + c.message; }).join('\n\n') %>"><%- icon('copy', 14) %> Copy all</button>
+          <% } %>
+        </div>
+      </div>
+      <% f.credentials.forEach(function (c) { %>
+        <div class="share-row" data-share-row>
+          <div class="person" style="min-width:0">
+            <span class="avatar"><%= fmt.initials(c.name, c.email) %></span>
+            <div style="min-width:0">
+              <div class="person-name"><%= c.name %> <span class="badge badge-success share-status" data-share-status></span></div>
+              <div class="person-email"><%= c.email %></div>
+            </div>
+          </div>
+          <div class="share-cred">
+            <span class="small muted">Password</span>
+            <code class="mono"><%= c.password %></code>
+          </div>
+          <div class="share-actions">
+            <a class="btn btn-sm btn-primary" href="<%= c.mailto %>" data-share><%- icon('mail', 14) %> Email</a>
+            <a class="btn btn-sm" href="<%= c.whatsapp %>" target="_blank" rel="noopener noreferrer" data-share><%- icon('message', 14) %> WhatsApp</a>
+            <button type="button" class="btn btn-sm" data-copy="<%= c.message %>" data-share><%- icon('copy', 14) %> Copy message</button>
+          </div>
+        </div>
+      <% }) %>
+      <div class="card-body small muted" style="padding-top:12px;padding-bottom:14px">
+        <%- icon('lock', 13) %> For security, passwords are shown only this once. If you lose one, use <strong>Share again</strong> in the participant's ⋯ menu to create a new password.
+        <strong>Email</strong> opens your own email app with the message ready to send.
+      </div>
+    </section>
+  <% } else if (f.type === 'password') { %>
+    <div class="alert alert-info" role="status">
+      <%- icon('lock', 18) %>
+      <div class="alert-body">
+        <%= f.message %>
+        <div class="row row-wrap" style="gap:10px;margin-top:10px">
+          <code class="mono" style="font-size:17px;font-weight:600;letter-spacing:.06em;color:var(--text)"><%= f.password %></code>
+          <button type="button" class="btn btn-sm" data-copy="<%= f.password %>"><%- icon('copy', 14) %> Copy password</button>
+        </div>
+      </div>
+    </div>
+  <% } else { %>
+    <div class="alert alert-<%= f.type %>" role="status">
+      <%- icon(flashIcons[f.type] || 'info', 18) %>
+      <div class="alert-body"><%= f.message %></div>
+      <button type="button" class="close" data-dismiss aria-label="Dismiss"><%- icon('x', 16) %></button>
+    </div>
+  <% } %>
+<% }) %>

@@ -1,0 +1,11 @@
+<%- include('../partials/head') %>
+<div class="auth">
+  <div class="card auth-card">
+    <div class="card-body" style="text-align:center">
+      <div class="empty-icon"><%- icon('lock', 26) %></div>
+      <h1 class="auth-title"><%= inv.quiz_title %></h1>
+      <p class="muted">This quiz is closed and can't be taken right now. If you think this is a mistake, contact the person who invited you.</p>
+    </div>
+  </div>
+</div>
+<%- include('../partials/foot') %>

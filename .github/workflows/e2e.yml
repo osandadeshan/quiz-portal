@@ -1,0 +1,120 @@
+# Runs the Quiz Portal Playwright suite on every pull request (and on pushes to main):
+#
+#   API tests (API-…)          plain HTTP: auth, CSRF, validation, privacy, roles,
+#                              one browser per link, scoring, CSV, error pages
+#   Browser tests (E2E-…)      Chromium through the whole quiz lifecycle
+#
+# Both run against a throwaway Postgres + Mailpit + the app started in Docker by
+# the suite itself (the GitHub ubuntu runner has Docker), and global teardown
+# restores and verifies the original state. Outputs: Allure report, Playwright
+# report, and the generated test-case table (also shown on the run's summary).
+#
+# The runner image is pinned (ubuntu-24.04) so a new `ubuntu-latest` can't change
+# the environment under a PR; bump it deliberately. Actions are on their Node 24
+# majors (checkout/setup-node/cache v5, upload-artifact v6).
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to the same PR cancels the run that's still going.
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  FORCE_COLOR: "1"
+
+jobs:
+  e2e:
+    name: Playwright (API + E2E)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check the E2E suite
+        run: npm run test:e2e:typecheck
+
+      - name: Read Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Chromium system libraries
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      # Pulled up front so image downloads don't eat into the stack's start-up timeout.
+      - name: Pull test containers (Postgres, Mailpit)
+        run: |
+          docker pull postgres:16-alpine
+          docker pull axllent/mailpit:v1.33.1
+
+      # The committed table and results are from someone's local run. Remove them so
+      # the table this job publishes can only contain this run's results.
+      - name: Start from an empty results table
+        run: rm -f src/tests/e2e-test-scenarios.md src/tests/e2e/scenarios/last-results.json
+
+      - name: Run API and browser tests
+        run: npm run test:e2e
+        env:
+          # The commit under test: a PR's head commit, not GitHub's temporary merge commit.
+          E2E_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Build Allure report
+        if: ${{ !cancelled() }}
+        run: npx allure generate src/tests/.output/allure-results -o src/tests/.output/allure-report --clean --name "Quiz Portal E2E"
+
+      - name: Add test-case table to the job summary
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f src/tests/e2e-test-scenarios.md ]; then
+            cat src/tests/e2e-test-scenarios.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### No test results: the run stopped before the suite finished. See the 'Run API and browser tests' step log." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload Allure report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: allure-report
+          path: src/tests/.output/allure-report
+          retention-days: 14
+
+      - name: Upload Playwright report, traces and scenarios table
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-report
+          path: |
+            src/tests/.output/playwright-report
+            src/tests/.output/test-results
+            src/tests/e2e-test-scenarios.md
+          retention-days: 14

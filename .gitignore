@@ -1,2 +1,15 @@
 node_modules/
 .env
+
+# OS / editor clutter
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs
+*.log
+npm-debug.log*
+
+# E2E test output (reports, screenshots, traces)
+src/tests/.output/

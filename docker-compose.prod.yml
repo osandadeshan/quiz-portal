@@ -1,0 +1,39 @@
+# Run the whole app (web + database) on any server with Docker:
+#   1. cp .env.example .env   and fill in the values (see README → Deploy → Option C)
+#   2. docker compose -f docker-compose.prod.yml up -d --build
+name: quiz-portal-prod
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # The database below is reached by its service name, not localhost.
+      DATABASE_URL: postgres://quiz:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/quiz
+      DATABASE_SSL: "false"
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      - db
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: quiz
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: quiz
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

@@ -1,0 +1,17 @@
+# Local PostgreSQL for development:  docker compose up -d
+# Fixed project name, so containers/volumes don't depend on the folder name.
+name: quiz-portal
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: quiz
+      POSTGRES_PASSWORD: quiz
+      POSTGRES_DB: quiz
+    ports:
+      - "5433:5432"   # host port 5433 avoids clashing with a locally installed Postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:

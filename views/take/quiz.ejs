@@ -1,0 +1,79 @@
+<%- include('../partials/head') %>
+<script type="application/json" id="quiz-data"><%- quizData %></script>
+<header class="take-top">
+  <div class="container take-top-inner">
+    <span class="brand-mark" style="flex-shrink:0"><%- icon('checkSquare', 18) %></span>
+    <div style="min-width:0">
+      <div class="take-title"><%= inv.quiz_title %></div>
+      <div class="small muted" id="answered-label">0 answered</div>
+    </div>
+    <div class="timer" id="timer" role="timer" aria-live="off" title="Time remaining"><%- icon('clock', 16) %> <span id="timer-text">--:--</span></div>
+  </div>
+  <div class="take-progress"><span id="progress-bar" style="width:0%"></span></div>
+</header>
+
+<main class="container">
+  <div class="take-layout">
+    <div>
+      <div class="row" style="margin-bottom:12px">
+        <button type="button" class="btn btn-sm mobile-nav-toggle" id="toggle-nav"><%- icon('grid', 14) %> All questions</button>
+        <span class="spacer"></span>
+        <span class="save-state" id="save-state" aria-live="polite"></span>
+      </div>
+      <article class="card question-card">
+        <div class="card-body">
+          <div class="q-meta">
+            <span class="q-counter" id="q-counter"></span>
+            <button type="button" class="btn btn-ghost btn-sm flag-btn" id="flag-btn" aria-pressed="false"><%- icon('flag', 14) %> <span>Mark for review</span></button>
+          </div>
+          <h2 class="question-text" id="q-text"></h2>
+          <div class="hint" id="q-hint" style="margin:-12px 0 18px"></div>
+          <fieldset style="border:0;margin:0;padding:0">
+            <legend class="sr-only">Answer options</legend>
+            <div class="choices" id="choices"></div>
+          </fieldset>
+          <div class="q-nav">
+            <button type="button" class="btn btn-lg" id="prev-btn"><%- icon('arrowLeft', 16) %> <span class="hide-sm">Previous</span></button>
+            <span class="spacer"></span>
+            <button type="button" class="btn btn-primary btn-lg" id="next-btn"><span>Next</span> <%- icon('arrowRight', 16) %></button>
+          </div>
+        </div>
+      </article>
+      <p class="small muted" style="text-align:center;margin-top:14px">Tip: use the number keys to pick an answer and ← → to move between questions.</p>
+    </div>
+
+    <aside class="card navigator" id="navigator">
+      <div class="card-body">
+        <h3>Questions</h3>
+        <p class="small muted" id="nav-summary"></p>
+        <div class="nav-grid" id="nav-grid"></div>
+        <div class="legend"><span><i class="a"></i> Answered</span><span><i></i> Not answered</span><span><i class="f"></i> Marked</span></div>
+        <button type="button" class="btn btn-primary btn-block" style="margin-top:18px" id="finish-btn"><%- icon('send', 16) %> Submit quiz</button>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<dialog class="modal" id="submit-modal">
+  <form method="dialog">
+    <div class="modal-body">
+      <div class="modal-icon" id="submit-icon"><%- icon('send', 22) %></div>
+      <h3>Submit your answers?</h3>
+      <p id="submit-summary"></p>
+      <div id="submit-unanswered" class="chips" style="justify-content:flex-start;margin-top:14px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" value="cancel">Keep working</button>
+      <button class="btn btn-primary" value="ok" id="submit-confirm">Submit now</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="overlay hidden" id="overlay">
+  <div class="overlay-card">
+    <div class="spinner"></div>
+    <h3 id="overlay-title">Submitting your answers…</h3>
+    <p class="muted small" id="overlay-text" style="margin-top:6px">Please keep this page open.</p>
+  </div>
+</div>
+<%- include('../partials/foot', { scripts: ['/js/take.js'] }) %>

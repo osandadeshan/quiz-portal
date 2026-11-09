@@ -1,0 +1,30 @@
+<%- include('head') %>
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a href="/admin" class="brand"><%- include('brand') %></a>
+    <nav class="nav" aria-label="Main">
+      <a href="/admin" class="<%= !currentPath.startsWith('/admin/team') && !currentPath.startsWith('/admin/account') ? 'active' : '' %>"><%- icon('grid', 16) %><span>Quizzes</span></a>
+      <a href="/admin/team" class="<%= currentPath.startsWith('/admin/team') ? 'active' : '' %>"><%- icon('users', 16) %><span>Team</span></a>
+    </nav>
+    <div class="spacer"></div>
+    <details class="dropdown">
+      <summary class="btn btn-ghost" style="padding:0 6px 0 4px;gap:10px" aria-label="Account menu">
+        <span class="avatar" style="width:32px;height:32px;font-size:12px"><%= fmt.initials(admin.name, admin.email) %></span>
+        <span class="hide-sm" style="font-weight:600"><%= admin.name %></span>
+        <%- icon('chevronDown', 16) %>
+      </summary>
+      <div class="dropdown-menu">
+        <div class="menu-label">Signed in as<br><strong style="color:var(--text)"><%= admin.email %></strong></div>
+        <div class="menu-sep"></div>
+        <a class="menu-item" href="/admin/account"><%- icon('user', 16) %> Account &amp; password</a>
+        <form method="post" action="/admin/logout">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="menu-item"><%- icon('logout', 16) %> Sign out</button>
+        </form>
+      </div>
+    </details>
+  </div>
+</header>
+<main class="page">
+  <div class="container<%= typeof narrow !== 'undefined' && narrow ? ' container-narrow' : '' %>">
+    <%- include('flash') %>
