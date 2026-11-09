@@ -21,7 +21,7 @@ Free and open source · Runs on your laptop or in your own cloud · No coding ne
 5. [Admin guide: creating quizzes and reviewing results](#5-admin-guide)
 6. [Participant guide: taking a quiz](#6-participant-guide)
 7. [Sending invitations: no-setup sharing or automatic email](#7-sending-invitations)
-8. [Put it online in your own cloud (step by step)](#8-put-it-online)
+8. [Put it online: Vercel or your own server (step by step)](#8-put-it-online)
 9. [Updating, backups and maintenance](#9-updating-backups-and-maintenance)
 10. [Troubleshooting](#10-troubleshooting)
 11. [FAQ](#11-faq)
@@ -198,13 +198,13 @@ This section gets Quiz Portal running on your own Windows or Mac computer, so yo
 ### Step 3: Download Quiz Portal
 
 **Easiest way (no Git needed):**
-1. Open the project's GitHub page: **https://github.com/osandadeshan/markdown-quiz-app**
+1. Open the project's GitHub page: **https://github.com/osandadeshan/quiz-portal**
 2. Click the green **Code** button, then **Download ZIP**.
 3. Unzip the file. You'll get a folder; rename it to **`quiz-portal`** and move it somewhere easy to find, like your **Documents** folder.
 
 **If you use Git:**
 ```bash
-git clone https://github.com/osandadeshan/markdown-quiz-app.git quiz-portal
+git clone https://github.com/osandadeshan/quiz-portal.git quiz-portal
 ```
 
 ### Step 4: Open a terminal in the project folder
@@ -479,27 +479,26 @@ Gmail can send around **500 emails per day** for free.
 
 ## 8. Put it online
 
-To let people take quizzes from anywhere, the app needs to run on a server in the cloud. Pick one option:
+To let people take quizzes from anywhere, the app needs to run in the cloud. Pick one option:
 
 | Option | Cost | Difficulty | Best for |
 |---|---|---|---|
-| **A. Render + Neon** | Free tiers available | ⭐ Easiest (all in the browser) | Trying it out, small teams |
-| **B. Render only** (web + Render database) | Free trial database, then paid | ⭐ Easy | Keeping everything in one place |
-| **C. Your own server with Docker** | Usually from about $4–6/month | ⭐⭐ Some terminal use | Full control, your own domain |
+| **A. Vercel + Neon** (recommended) | Free plans available | ⭐ Easiest (all in the browser, no server to look after) | Most people: small teams, schools, trying it out |
+| **B. Your own server with Docker** | Usually from about $4–6/month | ⭐⭐ Some terminal use | Full control, everything on one machine |
 
 ```mermaid
 flowchart LR
-    subgraph A["Option A / B"]
-        R["Render web service<br/>(runs Quiz Portal)"] --> N[("Neon or Render<br/>PostgreSQL")]
+    subgraph A["Option A"]
+        VC["Vercel<br/>(runs Quiz Portal)"] --> N[("Neon<br/>PostgreSQL")]
     end
-    subgraph C["Option C"]
+    subgraph B["Option B"]
         V["Your server (VPS)"] --> DC["Docker: Quiz Portal<br/>+ PostgreSQL"]
     end
-    U["People's browsers"] --> R
+    U["People's browsers"] --> VC
     U --> V
 ```
 
-> Free plans change over time. Check each provider's pricing page for current limits before relying on them.
+> Free plans change over time. Check each provider's pricing page for current limits before relying on them. Vercel's free **Hobby** plan is for personal, non-commercial use; a business or organisation needs a paid plan.
 
 ### Before you start (all options)
 
@@ -508,68 +507,65 @@ You'll need these values. Have a text file open to collect them:
 | Setting | What to put |
 |---|---|
 | `NODE_ENV` | `production` |
-| `DATABASE_URL` | The database address (you'll get it in the steps below) |
-| `DATABASE_SSL` | `true` for Neon/Render databases, `false` for option C |
-| `SESSION_SECRET` | A long random string. Render can generate one, or use a password generator to make 40+ random characters. |
-| `APP_URL` | The public address of your app, e.g. `https://my-quiz.onrender.com` (no slash at the end) |
+| `DATABASE_URL` | The database address. On Vercel it's added for you in Part 3; for option B it's set automatically |
+| `DATABASE_SSL` | `true` for Neon, `false` for option B |
+| `SESSION_SECRET` | A long random string (40+ characters). Use a password generator, or run `openssl rand -hex 32` |
+| `APP_URL` | The public address of your app, e.g. `https://my-quiz.vercel.app` (no slash at the end) |
 | `ADMIN_EMAIL` | The email you'll sign in with |
 | `ADMIN_PASSWORD` | A strong password (at least 8 characters) |
 | `ADMIN_NAME` | Your name |
+| `APP_TIMEZONE` | Optional. Your time zone for dates in the CSV export, e.g. `Asia/Colombo` or `Europe/London` ([list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)). Without it, CSV times are in UTC on Vercel |
 | `SMTP_*`, `MAIL_FROM` | Optional, see [section 7](#7-sending-invitations) |
 
 > 🔒 **On a live server the "create admin" page is switched off**, so nobody else can grab it first. Your first admin is created automatically from `ADMIN_EMAIL` and `ADMIN_PASSWORD`. After signing in, you can change the password on the **Account** page.
 
-### Option A: Render (app) + Neon (database)
+### Option A: Vercel (app) + Neon (database)
+
+Vercel runs Quiz Portal for you and updates it automatically whenever the code on GitHub changes. Neon stores the data. You create the Neon database from inside Vercel, so there's only one website to use.
 
 **Part 1: Put the code on GitHub** (skip if it's already in your own GitHub account)
 1. Create a free account at **https://github.com**.
-2. Open the Quiz Portal repository on GitHub and click **Fork** (top right). This makes your own copy.
+2. Open **https://github.com/osandadeshan/quiz-portal** and click **Fork** (top right). This makes your own copy.
 
-**Part 2: Create the database on Neon**
-1. Sign up at **https://neon.tech** (you can sign in with GitHub).
-2. Click **Create project**, name it `quiz-portal`, and pick the region closest to your users.
-3. On the project dashboard, find **Connection string** and click **Copy**. It looks like:
-   `postgresql://user:password@ep-something.region.aws.neon.tech/neondb?sslmode=require`
-4. Paste it into your notes as `DATABASE_URL`.
-
-**Part 3: Create the web app on Render**
-1. Sign up at **https://render.com** (sign in with GitHub).
-2. Click **New +** → **Web Service** → choose your Quiz Portal repository. Click **Connect**; if you don't see it, click **Configure account** and give Render access.
-3. Fill in:
-   - **Name:** e.g. `my-quiz`. Your address will be `https://my-quiz.onrender.com`.
-   - **Region:** close to your Neon region.
-   - **Branch:** `main`
-   - **Runtime / Language:** `Node`
-   - **Build Command:** `npm ci`
-   - **Start Command:** `npm start`
-   - **Instance Type:** **Free** (or a paid one, see the note below)
-4. Under **Environment Variables**, click **Add Environment Variable** for each of these:
+**Part 2: Create the project on Vercel**
+1. Sign up at **https://vercel.com/signup** and choose **Continue with GitHub**.
+2. Click **Add New…** → **Project**. Find your `quiz-portal` repository and click **Import**. If it isn't listed, click **Adjust GitHub App Permissions** and give Vercel access to it.
+3. On the next screen:
+   - **Project Name:** e.g. `my-quiz`. Your address will usually be `https://my-quiz.vercel.app`.
+   - **Framework Preset:** leave it as **Other**. The project's `vercel.json` file already tells Vercel everything it needs.
+   - Leave the build and output settings as they are.
+4. Open **Environment Variables** and add each of these (type the name in the left box and the value in the right box, then click **Add**):
    ```
    NODE_ENV        = production
-   DATABASE_URL    = (your Neon connection string)
    DATABASE_SSL    = true
-   SESSION_SECRET  = (click "Generate")
-   APP_URL         = https://my-quiz.onrender.com
+   SESSION_SECRET  = (your long random string)
+   APP_URL         = https://my-quiz.vercel.app
    ADMIN_NAME      = Your Name
    ADMIN_EMAIL     = you@example.com
    ADMIN_PASSWORD  = a-strong-password
+   APP_TIMEZONE    = Asia/Colombo        (optional, your own time zone)
    ```
-   Add the `SMTP_*` and `MAIL_FROM` values too if you want automatic emails.
-5. Click **Create Web Service** (or **Deploy**). Render builds and starts the app, which takes a few minutes. Wait until the log says **`Quiz Portal running at …`** and the status shows **Live**.
-6. Open **`https://my-quiz.onrender.com/admin`** and sign in with your `ADMIN_EMAIL` and `ADMIN_PASSWORD`. Done! 🎉
+   Add the `SMTP_*` and `MAIL_FROM` values too if you want automatic emails. You'll add `DATABASE_URL` in Part 3.
+5. Click **Deploy**. The first deployment finishes in about a minute, but the app **won't work yet** because it has no database. That's expected.
 
-> **About Render's free plan:** a free web service goes to sleep after a period with no visitors, and the first visit after that takes up to about a minute to wake it up. Quizzes keep working (timers are stored in the database, and expired quizzes are auto-submitted when it wakes), but for important assessments choose a paid instance so it never sleeps.
+**Part 3: Add the database (Neon)**
+1. In your Vercel project, open the **Storage** tab and click **Create Database**.
+2. Choose **Neon** (Serverless Postgres) and click **Continue**. Accept the terms and pick a plan (the free plan is fine to start).
+3. Pick the **region** closest to your participants, give the database a name such as `quiz-portal`, and click **Create**.
+4. When it asks which project to connect, choose your Quiz Portal project and the **Production** environment, then click **Connect**. Vercel adds `DATABASE_URL` (and a few other database variables) to your project automatically.
 
-### Option B: Everything on Render
+**Part 4: Check the address and go live**
+1. Open the project's **Overview** and look at **Domains**. If the address isn't exactly the `APP_URL` you entered (for example `https://my-quiz-abc123.vercel.app`), go to **Settings** → **Environment Variables**, edit `APP_URL` to match it exactly, and save.
+2. Open the **Deployments** tab, click the **⋯** next to the newest deployment, and choose **Redeploy**. This starts the app with the database and your settings.
+3. Open **`https://my-quiz.vercel.app/admin`** (your own address) and sign in with your `ADMIN_EMAIL` and `ADMIN_PASSWORD`. The very first page load can take a few seconds while the database is set up. Done! 🎉
 
-Same as Option A, but create the database on Render instead of Neon:
-1. In Render click **New +** → **PostgreSQL**, give it a name, choose a plan and the same region you'll use for the app, then click **Create Database**.
-2. When it's ready, open it and copy the **Internal Database URL**. Use it as `DATABASE_URL`, and set `DATABASE_SSL=false` (the internal connection doesn't need SSL).
-3. Continue with **Part 3** of Option A.
+> **Tips for Vercel**
+> - **Make it faster:** in **Settings** → **Functions**, set **Function Region** to the same region as your Neon database (or the closest one). Every page talks to the database, so being close matters.
+> - **Your own domain:** in **Settings** → **Domains** you can add an address like `quiz.yourschool.org`. Then change `APP_URL` to it and redeploy, so invitation links use the new address.
+> - **Changing a setting:** after editing any environment variable, **Redeploy** (step 2 above) so the app picks it up.
+> - **Seeing errors:** the **Logs** tab shows what the app printed, including any problem connecting to the database.
 
-> Check Render's pricing page: free Render databases are time-limited, so use a paid database plan for anything you want to keep.
-
-### Option C: Your own server with Docker
+### Option B: Your own server with Docker
 
 This runs both the app and its database on one server you rent, for example from DigitalOcean, Hetzner, Linode, Vultr or AWS Lightsail. Use **Ubuntu 22.04 or 24.04** with at least **1 GB RAM**.
 
@@ -587,7 +583,7 @@ curl -fsSL https://get.docker.com | sh
 
 **Step 4: Download Quiz Portal** (use your repository's address):
 ```bash
-git clone https://github.com/osandadeshan/markdown-quiz-app.git quiz-portal
+git clone https://github.com/osandadeshan/quiz-portal.git quiz-portal
 cd quiz-portal
 cp .env.example .env
 ```
@@ -600,6 +596,7 @@ Use the arrow keys to move and change these lines:
 ```
 SESSION_SECRET=   (a long random string)
 APP_URL=http://203.0.113.10:3000        (or https://quiz.yourdomain.com, see Step 8)
+APP_TIMEZONE=Asia/Colombo               (optional: your time zone for CSV dates)
 ADMIN_NAME=Your Name
 ADMIN_EMAIL=you@example.com
 ADMIN_PASSWORD=a-strong-password
@@ -646,8 +643,8 @@ You should see `Created admin account for …` and `Quiz Portal running at …`.
 ## 9. Updating, backups and maintenance
 
 ### Getting the latest version
-- **Render:** push changes to your GitHub repository (or click **Sync fork** on GitHub). Render redeploys automatically, or use **Manual Deploy → Deploy latest commit**.
-- **Option C:**
+- **Vercel:** push changes to your GitHub repository's `main` branch (or click **Sync fork** on GitHub). Vercel deploys the new version automatically in about a minute. If something goes wrong, open **Deployments**, click **⋯** on the previous deployment and choose **Promote to Production** (or **Instant Rollback**) to go back.
+- **Option B:**
   ```bash
   cd quiz-portal && git pull
   docker compose -f docker-compose.prod.yml up -d --build
@@ -657,8 +654,8 @@ You should see `Created admin account for …` and `Quiz Portal running at …`.
 Database changes are applied automatically when the app starts, so you don't need to run anything by hand.
 
 ### Backups
-- **Neon / Render:** both offer backups or restore points in their dashboards.
-- **Option C:** create a backup file:
+- **Neon (Vercel):** Neon keeps restore points. Open the database from Vercel's **Storage** tab (or at **https://console.neon.tech**) to restore to an earlier time.
+- **Option B:** create a backup file:
   ```bash
   docker compose -f docker-compose.prod.yml exec -T db pg_dump -U quiz quiz > backup-$(date +%F).sql
   ```
@@ -669,7 +666,7 @@ Database changes are applied automatically when the app starts, so you don't nee
 - **Your computer:** your data lives in Docker. `docker compose stop` keeps it; `docker compose down -v` **deletes** it.
 
 ### Changing settings later
-Edit `.env` (or the environment variables on Render) and restart the app. Note that `ADMIN_EMAIL` / `ADMIN_PASSWORD` only create the **first** admin. To change your password later, use the **Account** page.
+Edit `.env` and restart the app (option B), or change the environment variables in Vercel's **Settings → Environment Variables** and **Redeploy** (option A). Note that `ADMIN_EMAIL` / `ADMIN_PASSWORD` only create the **first** admin. To change your password later, use the **Account** page.
 
 ---
 
@@ -695,7 +692,11 @@ Edit `.env` (or the environment variables on Render) and restart the app. Note t
 | An admin forgot their password | The **owner** opens **Team → ⋯ → Reset password** and shares the new one. |
 | The owner forgot their password | Run `npm run reset-password -- you@example.com` in the project folder. On a Docker server: `docker compose -f docker-compose.prod.yml exec app npm run reset-password -- you@example.com`. It prints a new password; sign in and change it on the Account page. |
 | "Only the owner … can add, remove or reset admins" | Ask the owner (the admin with the **Owner** badge on the Team page) to do it. |
-| Dates in the CSV are in the wrong time zone | Set `TZ` to your time zone (for example `TZ=Asia/Colombo`) in `.env` and restart. Pages already show each viewer's own time zone. |
+| Dates in the CSV are in the wrong time zone | Set `APP_TIMEZONE` to your time zone (for example `APP_TIMEZONE=Asia/Colombo`) in `.env` and restart, or in Vercel's environment variables and redeploy. Pages already show each viewer's own time zone. |
+| Vercel: “Quiz Portal can't reach its database right now” | `DATABASE_URL` is missing or wrong. In Vercel, check **Storage** (the Neon database is connected to the project's **Production** environment) and **Settings → Environment Variables**, then **Redeploy**. The **Logs** tab shows the exact error. |
+| Vercel: “This Serverless Function has crashed” / `FUNCTION_INVOCATION_FAILED` | Open the **Logs** tab. `DATABASE_URL is not set` means the database isn't connected yet (Part 3 of option A). `SESSION_SECRET must be set` means that variable is missing. Fix it, then **Redeploy**. |
+| Vercel: changed a setting but nothing happened | Environment variables only apply to new deployments. Open **Deployments → ⋯ → Redeploy**. |
+| Vercel: the owner forgot their password | On your computer, in the project folder, run `DATABASE_URL="(copy it from Vercel → Settings → Environment Variables)" DATABASE_SSL=true npm run reset-password -- you@example.com`. It prints a new password. |
 
 ---
 
@@ -743,7 +744,9 @@ Yes. Use **Duplicate**. You can also invite new people to an existing quiz at an
 
 ### Project structure
 ```
-app.js                       Entry point
+app.js                       Entry point (npm start / Docker)
+api/index.js                 Entry point on Vercel (serverless function wrapping the same app)
+vercel.json                  Vercel settings: static files from public/, everything else to api/index.js
 src/
   server.js                  Express setup: security headers, sessions, routes, startup
   config.js                  Reads environment variables
@@ -768,7 +771,9 @@ AGENTS.md, CLAUDE.md         Guide for AI coding agents / contributors (architec
 .claude/skills/              Claude Code skill: how to verify changes (runs the Playwright suite)
 Dockerfile                   Production image
 docker-compose.yml           Local development database (port 5433)
-docker-compose.prod.yml      Production stack: app + database
+docker-compose.prod.yml      Production stack for your own server: app + database
+.github/workflows/e2e.yml    CI: runs the Playwright suite on every pull request
+LICENSE                      MIT License
 ```
 
 ### Data model
@@ -801,12 +806,14 @@ erDiagram
 | `PORT` | | `3000` | Port the app listens on |
 | `NODE_ENV` | | — | `production` on live servers (disables browser admin setup) |
 | `TRUST_PROXY` | | `1` if `APP_URL` is https, otherwise off | Set only if the app is behind a reverse proxy but `APP_URL` is `http://`. Accepts `true`, `false`, a number of hops, or IP ranges |
-| `TZ` | | server's zone | Time zone for dates in the CSV export, e.g. `Asia/Colombo`. Pages show each viewer's own time zone |
+| `APP_TIMEZONE` | | server's zone (`TZ`; UTC on Vercel) | Time zone for dates in the CSV export, e.g. `Asia/Colombo`. Pages always show each viewer's own time zone. (Vercel doesn't allow setting `TZ`, so use this.) |
+| `DB_POOL_MAX` | | `10` (`3` on Vercel) | Most database connections per app instance |
 | `APP_NAME` | | `Quiz Portal` | Name shown in the app and emails |
 | `ADMIN_NAME` / `ADMIN_EMAIL` / `ADMIN_PASSWORD` | ✅ in production | — | Creates the first admin at startup if that email doesn't exist |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | | empty | SMTP settings. Empty `SMTP_HOST` = share invitations manually |
 | `MAIL_FROM` | | `SMTP_USER` | "From" address on invitation emails |
 | `POSTGRES_PASSWORD`, `APP_PORT` | `docker-compose.prod.yml` only | — | Bundled database password and published port |
+| `VERCEL` | set by Vercel | — | Set automatically on Vercel. Switches to serverless mode (see "Running on Vercel" below) |
 
 ### npm scripts
 
@@ -864,16 +871,21 @@ The inbox is **Mailpit**, a disposable mailbox that runs in Docker and catches e
 The suite uses ports 3997 (app), 54331 (database), 11025 and 18025 (mailbox). Override them with `E2E_APP_PORT`, `E2E_PG_PORT`, `E2E_SMTP_PORT` and `E2E_MAIL_UI_PORT` if they're busy.
 
 ### How key behaviours work
-- **Timer:** when Start is pressed, the server stores `deadline_at`. The browser only displays a countdown. A background sweeper (every 20 s) and every request auto-submit attempts past the deadline, with a 15 s grace period for the browser's final save.
+- **Timer:** when Start is pressed, the server stores `deadline_at`. The browser only displays a countdown. A sweep (a background timer every 20 s; on Vercel, before requests, at most every 20 s) and every request auto-submit attempts past the deadline, with a 15 s grace period for the browser's final save.
 - **Scoring:** all-or-nothing per question (the selected option set must equal the correct set).
 - **Ranking:** `RANK() OVER (ORDER BY score DESC, time_taken ASC)`.
 - **One browser per link:** each sign-in stores a new random `session_key` on the invitation, and older browsers' keys stop matching. The quiz page polls `/q/:token/ping` every 15 s.
 - **Option shuffling:** a deterministic shuffle seeded by the invitation token and question ID, so the order is stable for each person and nothing needs storing.
 - **Privacy between admins:** every admin query is scoped by `quizzes.created_by`. Only the owner (`admins.role = 'owner'`) can manage other admins.
+- **Running on Vercel:** `vercel.json` serves `public/` from Vercel's CDN and sends every other request to one serverless function, `api/index.js`, which wraps the same Express app. Vercel sets `VERCEL=1`, and the app then:
+  - runs its startup work (database schema, first admin) on the first request of each instance, not at boot. Instances take turns applying the schema, using a database lock.
+  - has no background timer: expired attempts are finalized before a request, at most every 20 s per instance (and as always, when that participant's page is loaded or the quiz is submitted)
+  - uses a small database pool (`DB_POOL_MAX`, 3) and no SMTP connection pooling
+  - The test suite can run the app this way (`E2E_TARGET=vercel npm run test:e2e`).
 - **Health check:** `GET /healthz` returns `{"ok":true}` when the app can reach the database. `docker-compose.prod.yml` uses it, and you can point a hosting platform's health check at it.
 
 ---
 
 ## 13. License
 
-Released under the **MIT License**: free to use, modify and share.
+Released under the **MIT License**: free to use, modify and share. See [LICENSE](LICENSE).

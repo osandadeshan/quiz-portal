@@ -26,7 +26,7 @@ const appUrl = (env.APP_URL || `http://localhost:${port}`).replace(/\/+$/, "");
 const https = appUrl.startsWith("https://");
 
 /**
- * Express "trust proxy". An https APP_URL means a proxy (Render, nginx, Caddy…)
+ * Express "trust proxy". An https APP_URL means a proxy (Vercel, nginx, Caddy…)
  * terminates TLS in front of the app, so trust one hop. On plain http there is
  * usually no proxy; trusting X-Forwarded-For there would let anyone fake their IP
  * and dodge the sign-in rate limits. TRUST_PROXY overrides (true/false/number/list).
@@ -39,8 +39,26 @@ function trustProxy(value) {
   return value;
 }
 
+// Vercel sets VERCEL=1 at build and run time. There the app runs as a serverless
+// function: no long-running process (no background timer, no app.listen), and
+// many short-lived instances share the database.
+const serverless = Boolean(env.VERCEL);
+
+/** IANA time zone for dates the server writes itself (CSV export), e.g. "Asia/Colombo". */
+function timeZone(value) {
+  if (!value) return undefined;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return value;
+  } catch {
+    console.warn(`APP_TIMEZONE "${value}" isn't a valid time zone (e.g. "Europe/London"). Using the server's time zone.`);
+    return undefined;
+  }
+}
+
 module.exports = {
   isProd,
+  serverless,
   port,
   appName: env.APP_NAME || "Quiz Portal",
   appUrl,
@@ -50,6 +68,10 @@ module.exports = {
   trustProxy: trustProxy(env.TRUST_PROXY),
   databaseUrl: env.DATABASE_URL,
   databaseSsl: env.DATABASE_SSL === "true",
+  // Serverless instances each open their own pool, so keep it small there.
+  dbPoolMax: Number(env.DB_POOL_MAX) || (serverless ? 3 : 10),
+  // Vercel reserves TZ, so the time zone for CSV dates is set with APP_TIMEZONE.
+  timeZone: timeZone(env.APP_TIMEZONE),
   sessionSecret: env.SESSION_SECRET || "dev-only-insecure-secret",
   admin: {
     name: env.ADMIN_NAME || "Administrator",

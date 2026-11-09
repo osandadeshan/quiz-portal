@@ -122,7 +122,7 @@ app.use((err, req, res, next) => {
 });
 
 /** Wait for PostgreSQL instead of exiting (e.g. the database container is still starting). */
-async function migrateWithRetry(maxWaitMs = 60000) {
+async function migrateWithRetry(maxWaitMs = config.serverless ? 8000 : 60000) {
   const started = Date.now();
   for (let attempt = 1; ; attempt++) {
     try {
@@ -136,9 +136,25 @@ async function migrateWithRetry(maxWaitMs = 60000) {
   }
 }
 
+/**
+ * One-time startup work (schema + first admin), shared by every request of this
+ * process. Used by start() and by the serverless entry (api/index.js). A failure
+ * is not cached, so the next request tries again.
+ */
+let readyPromise = null;
+function ready() {
+  readyPromise ??= (async () => {
+    await migrateWithRetry();
+    await admins.seedFromEnv();
+  })().catch((err) => {
+    readyPromise = null;
+    throw err;
+  });
+  return readyPromise;
+}
+
 async function start() {
-  await migrateWithRetry();
-  await admins.seedFromEnv();
+  await ready();
   const sweeper = attempts.startSweeper();
   const server = app.listen(config.port, () => {
     console.log(`${config.appName} running at ${config.appUrl}`);
@@ -163,4 +179,4 @@ async function start() {
   return server;
 }
 
-module.exports = { app, start };
+module.exports = { app, start, ready };

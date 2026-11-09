@@ -26,6 +26,8 @@ npm run test:api            # only the API tests (~25 s)
 npm run test:ui             # only the browser tests (~1 min)
 npm run test:e2e:report     # Allure report of the last E2E run
 npm run test:e2e:doc        # regenerate src/tests/e2e-test-scenarios.md
+npx vercel build                                           # check the Vercel bundle locally (no account needed with a stub .vercel/project.json)
+E2E_TARGET=vercel npm run test:e2e                         # run the suite against the app in Vercel mode
 docker build -t quiz-portal .                              # production image
 docker compose -f docker-compose.prod.yml up -d --build    # app + DB on any server
 ```
@@ -35,8 +37,10 @@ There is no unit-test framework yet. **Verify every change with the Playwright s
 ## Layout
 
 ```
-app.js                    entry → src/server.js start()
-src/server.js             helmet/CSP, static, body parsers, session, locals, flash, csrf, routes, 404/500, startup (migrate with retry, seed admin, sweeper)
+app.js                    entry for npm start / Docker → src/server.js start()
+api/index.js              entry on Vercel: serverless handler → ready() + sweepIfDue() + the same Express app
+vercel.json               Vercel: public/ as static output, rewrite everything else to /api, includeFiles views/** + src/schema.sql
+src/server.js             helmet/CSP, static, body parsers, session, locals, flash, csrf, routes, 404/500, ready() (migrate with retry + seed admin, memoized), start() (ready + sweeper + listen)
 src/config.js             env parsing; exits if DATABASE_URL missing; `config.https` = APP_URL starts with https
 src/schema.sql            idempotent schema, run on every boot (CREATE … IF NOT EXISTS / ALTER … ADD COLUMN IF NOT EXISTS)
 src/db.js                 pg Pool, query(), tx(fn), migrate()
@@ -72,7 +76,7 @@ Question types: `single`, `yesno` (options are always exactly Yes, No), `multipl
 
 1. **Admin privacy.** Every admin route that loads a quiz or invitation must be scoped to `created_by = req.admin.id` (`loadQuiz` and `loadInvitation` in `routes/admin.js` return 404 otherwise). New queries must do the same.
 2. **Correct answers never reach the participant's browser** before submission. The `/take` payload only includes option `id` and `text`.
-3. **The server owns the timer.** `deadline_at` is set at Start. The browser countdown is cosmetic. Expired attempts are finalized by the sweeper (every 20 s), by any request (`loadInvite`), and on submit. There is a 15 s grace period (`config.submitGraceSeconds`). **Compare deadlines with the database clock** (`attempts.clockOf(inv)` / `db_now_ms`), never `Date.now()`: `deadline_at` comes from Postgres `now()`, and mixing clocks made the countdown show 15:01 on a 15-minute quiz (caught by the E2E suite).
+3. **The server owns the timer.** `deadline_at` is set at Start. The browser countdown is cosmetic. Expired attempts are finalized by the sweeper (every 20 s; on Vercel `sweepIfDue()` before requests), by any request (`loadInvite`), and on submit. There is a 15 s grace period (`config.submitGraceSeconds`). **Compare deadlines with the database clock** (`attempts.clockOf(inv)` / `db_now_ms`), never `Date.now()`: `deadline_at` comes from Postgres `now()`, and mixing clocks made the countdown show 15:01 on a 15-minute quiz (caught by the E2E suite).
 4. **Scoring is all-or-nothing** (selected set == correct set). Ranking: `RANK() OVER (ORDER BY score DESC, time_taken ASC)`.
 5. **Questions lock once anyone has started** (`questionsLocked`). The title, description and duration stay editable; `shuffle_options` locks with the questions.
 6. **One browser per link.** Each sign-in stores a new `session_key` on the invitation; the session holds `inviteKeys[invitationId]`. A stale key means "signed out elsewhere". `/q/:token/ping` is polled every 15 s.
@@ -88,6 +92,20 @@ Question types: `single`, `yesno` (options are always exactly Yes, No), `multipl
 16. **Results visibility.** `quizzes.show_results`: `full` shows score + review, `score` hides the review, `none` hides score too. `views/take/result.ejs` must not render correct answers unless it's `full`. It stays editable when questions are locked.
 17. **Password changes end other sessions.** `admins.endSessions()` deletes rows in the `sessions` table by `sess->>'adminId'` (account password change keeps the current `req.sessionID`; owner reset and removal end all).
 18. **`req.session.regenerate` callbacks call `next(err)`**, never `throw`: a throw inside that callback escapes `asyncHandler` and crashes the process.
+
+## Vercel (primary hosting)
+
+Production runs on Vercel (README section 8, option A: Vercel + Neon). Docker (`docker-compose.prod.yml`) is the self-hosting alternative. Both must keep working.
+
+- **One serverless function.** `api/index.js` wraps the Express app. `vercel.json` (`framework: null`) serves `public/` from the CDN, rewrites everything else to `/api`, and bundles `views/**` and `src/schema.sql` via `includeFiles`. Vercel ignores `express.static()`, so every static asset must live in `public/`. A new runtime-read file or folder (templates, SQL, JSON) must be added to `includeFiles`. Check with `npx vercel build`: `.vercel/output/functions/api/index.func/.vc-config.json` → `filePathMap` lists what's bundled.
+- **No long-running process.** Never rely on `app.listen`, `setInterval` or work after the response on Vercel. `config.serverless` (`VERCEL=1`):
+  - startup is lazy (`ready()`, memoized; a failure isn't cached)
+  - the sweeper is replaced by `attempts.sweepIfDue()` before each request (at most every 20 s per instance)
+  - the DB pool is small (`DB_POOL_MAX`, 3)
+  - nodemailer doesn't pool
+- **Many instances, one database.** `db.migrate()` takes a Postgres advisory lock, so concurrent cold starts don't collide on `CREATE … IF NOT EXISTS`. In-memory state is per instance, so treat it as a cache only. The sign-in rate limits (express-rate-limit MemoryStore) are therefore weaker on Vercel; see the backlog in docs/REVIEW.md.
+- **`TZ` is reserved on Vercel.** CSV dates use `APP_TIMEZONE` (`config.timeZone`, validated with `Intl`) in `util.sheetDate`.
+- **Test it:** `E2E_TARGET=vercel` makes `start-stack.cjs` run `support/vercel-local.cjs`: static files from `public/` first, then `api/index.js`, with `VERCEL=1`. CI runs the API tests in this mode before the normal full run.
 
 ## E2E tests (Playwright, `src/tests`)
 
@@ -110,7 +128,7 @@ Question types: `single`, `yesno` (options are always exactly Yes, No), `multipl
 - **Validation lives in two places:** `services/quizzes.js#validateQuiz` (authoritative) and `public/js/builder.js#validate` (instant feedback). Keep their rules and messages aligned. Length limits live in `LIMITS` in both files.
 - **Async route handlers** are wrapped in `asyncHandler`. JSON endpoints return `{ error }` or `{ errors }` with proper status codes, and `{ redirect }` on success.
 - **UI text** is plain and friendly, aimed at non-technical users. Destructive actions use a `<form data-confirm="…" data-confirm-title data-confirm-btn data-danger>` (handled by ui.js). Pluralize with `fmt.plural(n, "minute")` ("1 minute", "3 minutes").
-- **Dates in views:** use `<%- fmt.localTime(date) %>`. It renders `<time data-local>`, which ui.js rewrites in the viewer's own time zone (the server in Docker runs in UTC). CSV dates use `sheetDate()` in the server's `TZ`.
+- **Dates in views:** use `<%- fmt.localTime(date) %>`. It renders `<time data-local>`, which ui.js rewrites in the viewer's own time zone (the server on Vercel and in Docker runs in UTC). CSV dates use `sheetDate()` in `APP_TIMEZONE` (or the server's `TZ`).
 - **Recipient parsing** is `util.splitRecipients` (server) mirrored in ui.js (preview): lines/semicolons split, commas split only when a piece has several `@`, so Outlook's `Last, First <email>` stays one entry.
 - **CSV cells** go through `util.csvCell` (quotes and neutralises `= + - @` formula injection).
 - **Question import** (`parseImport` in builder.js) is client-side only; the server validates the result like any builder save.

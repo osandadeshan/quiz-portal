@@ -13,3 +13,6 @@ npm-debug.log*
 
 # E2E test output (reports, screenshots, traces)
 src/tests/.output/
+
+# Vercel CLI (local project link and build output)
+.vercel/

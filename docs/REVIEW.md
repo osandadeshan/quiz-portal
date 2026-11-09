@@ -110,11 +110,27 @@ The test cases (baby steps, expected results, priority, component, last status, 
 | Options saved in reverse order | E2E-02 (Questions tab) |
 | Invitation email shows the wrong question count | E2E-04 (email summary) |
 
+## Hosting moved to Vercel (2026-11-09)
+
+Render is no longer documented. The primary hosting is **Vercel + Neon** (README section 8, option A); self-hosting with Docker stays as option B. The repository was renamed `markdown-quiz-app` → `quiz-portal`, and the links and remote now use the new name.
+
+What changed in the app for serverless (all no-ops outside Vercel):
+- `api/index.js` handler and `vercel.json`: static `public/` on the CDN, everything else to one function, with `views/**` and `src/schema.sql` bundled via `includeFiles` (checked with a local `vercel build`: all 21 templates and the schema are in the bundle)
+- lazy, memoized startup (`ready()`)
+- the per-request `sweepIfDue()` replaces the 20 s timer
+- migrations serialised with a Postgres advisory lock (six instances migrating at once succeeded)
+- a small DB pool (`DB_POOL_MAX`)
+- no SMTP pooling
+- `APP_TIMEZONE` for CSV dates, because Vercel reserves `TZ`
+
+The full Playwright suite passes in Vercel mode (`E2E_TARGET=vercel`, 25/25), and CI runs the API tests in that mode on every PR.
+
 ## Backlog (prioritised, not yet done)
 
 | P | Item | Notes |
 |---|---|---|
 | P1 | **Unit tests** | The Playwright suite (API + browser) runs in CI on every PR (`.github/workflows/e2e.yml`, Allure report as an artifact). There are no unit tests yet. Start with `node --test` for `validateQuiz`, `parseRecipients`, `parseImport` (move it to a shared module), `isAnswerCorrect` and `csvCell`, and add them to the same workflow. |
+| P1 | **Shared rate-limit store on Vercel** | express-rate-limit uses an in-memory store, so on Vercel each function instance counts failed sign-ins separately and the limit is weaker. Add a small Postgres-backed store (a `rate_limits` table keyed by limiter + key, with an expiry) or Upstash Redis, and use it when `config.serverless`. |
 | P1 | **Add extra time / extend deadline** for one in-progress participant | Accessibility accommodations, technical problems. Update `deadline_at` and the client picks it up via `/ping` (return `deadline`). |
 | P1 | **Availability window** (opens at / closes at) | Today closing is manual. Add `opens_at`/`closes_at` and have the sweeper close the quiz. |
 | P2 | **Pass mark** (pass/fail badge, filter, CSV column) | Common for compliance training. |

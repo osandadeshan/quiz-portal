@@ -111,10 +111,21 @@ function localTime(d) {
   return `<time datetime="${iso}" data-local>${formatDate(d)}</time>`;
 }
 
-/** "2026-11-09 14:05" in the server's time zone (TZ). Spreadsheets read this as a date. */
-function sheetDate(d) {
+/**
+ * "2026-11-09 14:05" in APP_TIMEZONE (or the server's time zone, TZ, when unset).
+ * Spreadsheets read this as a date.
+ */
+function sheetDate(d, timeZone = require("./config").timeZone) {
   if (!d) return "";
   const x = new Date(d);
+  if (timeZone) {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+        .formatToParts(x)
+        .map((p) => [p.type, p.value])
+    );
+    return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+  }
   const p = (n) => String(n).padStart(2, "0");
   return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())} ${p(x.getHours())}:${p(x.getMinutes())}`;
 }

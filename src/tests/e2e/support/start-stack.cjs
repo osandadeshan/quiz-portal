@@ -88,7 +88,11 @@ process.on("exit", () => { if (!stopping) removeContainers(); });
   log(`starting Quiz Portal on ${appUrl}`);
   fs.mkdirSync(path.dirname(APP_LOG), { recursive: true });
   const logFile = fs.createWriteStream(APP_LOG, { flags: "w" });
-  app = spawn(process.execPath, ["app.js"], {
+  // E2E_TARGET=vercel runs the app as Vercel does (static files + the api/index.js
+  // serverless handler, VERCEL=1); the default is the normal server (npm start).
+  const vercel = env.E2E_TARGET === "vercel";
+  log(vercel ? "mode: Vercel (api/index.js serverless handler)" : "mode: normal server (app.js)");
+  app = spawn(process.execPath, [vercel ? path.join(__dirname, "vercel-local.cjs") : "app.js"], {
     cwd: ROOT,
     stdio: ["ignore", "pipe", "pipe"],
     env: {

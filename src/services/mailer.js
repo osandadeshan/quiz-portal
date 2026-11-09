@@ -10,7 +10,8 @@ const transport = configured
       secure: config.smtp.secure,
       auth: config.smtp.user ? { user: config.smtp.user, pass: config.smtp.pass } : undefined,
       // Reuse a few connections for big invite batches instead of one per email.
-      pool: true,
+      // Not on serverless: a frozen instance would leave pooled sockets half-dead.
+      pool: !config.serverless,
       maxConnections: 3,
     })
   : null;

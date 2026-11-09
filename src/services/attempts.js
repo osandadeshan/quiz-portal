@@ -222,6 +222,24 @@ async function sweepExpired() {
   return rows.length;
 }
 
+/**
+ * Serverless replacement for the sweeper timer: run the sweep at most every 20 s
+ * per instance, before a request is handled. (Expired attempts are also finalized
+ * by any request for that invitation and on submit, so this only keeps admin
+ * pages up to date.)
+ */
+let lastSweep = 0;
+async function sweepIfDue(now = Date.now()) {
+  if (now - lastSweep < 20 * 1000) return 0;
+  lastSweep = now;
+  try {
+    return await sweepExpired();
+  } catch (e) {
+    console.error("[sweeper]", e.message);
+    return 0;
+  }
+}
+
 function startSweeper() {
   const run = () => sweepExpired().catch((e) => console.error("[sweeper]", e.message));
   run();
@@ -326,6 +344,7 @@ module.exports = {
   clockOf,
   sweepExpired,
   startSweeper,
+  sweepIfDue,
   getAnswers,
   rankedResults,
   listInvitations,

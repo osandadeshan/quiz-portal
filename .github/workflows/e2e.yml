@@ -4,6 +4,9 @@
 #                              one browser per link, scoring, CSV, error pages
 #   Browser tests (E2E-…)      Chromium through the whole quiz lifecycle
 #
+# The API tests also run once against the app in Vercel mode (E2E_TARGET=vercel:
+# the api/index.js serverless entry, as deployed on Vercel).
+#
 # Both run against a throwaway Postgres + Mailpit + the app started in Docker by
 # the suite itself (the GitHub ubuntu runner has Docker), and global teardown
 # restores and verifies the original state. Outputs: Allure report, Playwright
@@ -75,6 +78,14 @@ jobs:
         run: |
           docker pull postgres:16-alpine
           docker pull axllent/mailpit:v1.33.1
+
+      # The app as it runs on Vercel (api/index.js serverless handler, VERCEL=1).
+      # --reporter=list leaves the published table and Allure report to the full
+      # run below.
+      - name: API tests against the app in Vercel mode
+        run: npx playwright test -c src/tests --project=api --reporter=list
+        env:
+          E2E_TARGET: vercel
 
       # The committed table and results are from someone's local run. Remove them so
       # the table this job publishes can only contain this run's results.
